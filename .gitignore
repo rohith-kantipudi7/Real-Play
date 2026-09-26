@@ -26,3 +26,10 @@ app/debug/
 *.tflite
 *.task
 *.onnx
+# Model archives (Keras / bundles downloaded for conversion)
+*.tar.gz
+*.tar
+*.zip
+
+# Local model source binaries (never committed)
+models-local/

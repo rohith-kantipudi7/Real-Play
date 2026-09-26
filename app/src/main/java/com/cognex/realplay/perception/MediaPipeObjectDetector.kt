@@ -94,7 +94,13 @@ class MediaPipeObjectDetector private constructor(
 
     companion object {
         private const val TIER_B_PROPS = "/sdcard/realplay/models/realplay_props.tflite"
-        private const val TIER_A_ASSET = "models/efficientdet_lite0.tflite"
+        // Primary: float32 efficientdet_lite2 (accurate, GPU-capable). Fallback: int8 lite0 (CPU).
+        private const val TIER_A_FLOAT = "models/efficientdet_lite2.tflite"
+        private const val TIER_A_INT8 = "models/efficientdet_lite0.tflite"
+        // Slightly permissive: the tracker's temporal voting rejects spurious one-frame hits, so a
+        // lower detector threshold improves recall without hurting stability (§S2, §3 tracker).
+        private const val SCORE_THRESHOLD = 0.3f
+        private const val MAX_RESULTS = 15
 
         /**
          * Creates the detector, resolving the model tier and trying GPU first, then CPU. Returns
@@ -106,30 +112,32 @@ class MediaPipeObjectDetector private constructor(
         ): MediaPipeObjectDetector? {
             val tierBFile = File(TIER_B_PROPS)
             val useTierB = tierBFile.exists() && tierBFile.length() > 0L
+            // The float32 lite2 model is the accurate default; int8 lite0 is the CPU-only fallback.
+            val assetPath = if (useTierB) null else TIER_A_FLOAT
             RpLog.i(
                 RpLog.Tag.MODEL,
                 if (useTierB) "Object model: TIER-B ${tierBFile.absolutePath}"
-                else "Object model: TIER-A asset/$TIER_A_ASSET"
+                else "Object model: TIER-A asset/$TIER_A_FLOAT"
             )
 
             var holder: MediaPipeObjectDetector? = null
 
-            fun baseOptions(delegate: Delegate): BaseOptions {
+            fun baseOptions(delegate: Delegate, path: String?): BaseOptions {
                 val b = BaseOptions.builder().setDelegate(delegate)
                 if (useTierB) {
                     b.setModelAssetBuffer(readFileToDirectBuffer(tierBFile))
                 } else {
-                    b.setModelAssetPath(TIER_A_ASSET)
+                    b.setModelAssetPath(path ?: TIER_A_FLOAT)
                 }
                 return b.build()
             }
 
-            fun build(delegate: Delegate): ObjectDetector {
+            fun build(delegate: Delegate, path: String?): ObjectDetector {
                 val options = ObjectDetector.ObjectDetectorOptions.builder()
-                    .setBaseOptions(baseOptions(delegate))
+                    .setBaseOptions(baseOptions(delegate, path))
                     .setRunningMode(RunningMode.LIVE_STREAM)
-                    .setScoreThreshold(0.4f)
-                    .setMaxResults(10)
+                    .setScoreThreshold(SCORE_THRESHOLD)
+                    .setMaxResults(MAX_RESULTS)
                     .setResultListener { result, inputImage ->
                         holder?.handleResult(result, inputImage)
                     }
@@ -140,22 +148,29 @@ class MediaPipeObjectDetector private constructor(
                 return ObjectDetector.createFromOptions(context, options)
             }
 
+            // The float32 lite2 model runs on the GPU delegate (faster + accurate). Try GPU first,
+            // then CPU with the same float model, then finally the int8 lite0 on CPU as a last resort.
+            // (A Tier-B .tflite of unknown quantisation always uses CPU to be safe.)
+            if (!useTierB) {
+                runCatching {
+                    val d = build(Delegate.GPU, TIER_A_FLOAT)
+                    RpLog.i(RpLog.Tag.PERCEPTION, "ObjectDetector: lite2 float on GPU delegate")
+                    return MediaPipeObjectDetector(d, onResults).also { holder = it }
+                }.onFailure { RpLog.w(RpLog.Tag.PERCEPTION, "lite2 GPU failed (${it.message}); trying CPU") }
+            }
+
             return try {
-                // The bundled Tier-A model (efficientdet_lite0 int8) is quantized and designed for
-                // CPU/XNNPACK — MediaPipe's GPU delegate requires a float model and fails at
-                // inference time ("ToTensorConverter: input data size does not match expected size").
-                // So object detection runs on CPU; GPU is only a last resort if CPU init fails.
-                val detector = build(Delegate.CPU)
+                val detector = build(Delegate.CPU, assetPath)
                 RpLog.i(RpLog.Tag.PERCEPTION, "ObjectDetector created on CPU delegate")
                 MediaPipeObjectDetector(detector, onResults).also { holder = it }
             } catch (cpuError: Throwable) {
-                RpLog.w(RpLog.Tag.PERCEPTION, "CPU delegate failed (${cpuError.message}); trying GPU")
+                RpLog.w(RpLog.Tag.PERCEPTION, "CPU delegate failed (${cpuError.message}); trying int8 lite0 CPU")
                 try {
-                    val detector = build(Delegate.GPU)
-                    RpLog.i(RpLog.Tag.PERCEPTION, "ObjectDetector created on GPU delegate")
+                    val detector = build(Delegate.CPU, TIER_A_INT8)
+                    RpLog.i(RpLog.Tag.PERCEPTION, "ObjectDetector fell back to int8 lite0 on CPU")
                     MediaPipeObjectDetector(detector, onResults).also { holder = it }
-                } catch (gpuError: Throwable) {
-                    RpLog.e(RpLog.Tag.PERCEPTION, "GPU delegate also failed; no real detector", gpuError)
+                } catch (fallbackError: Throwable) {
+                    RpLog.e(RpLog.Tag.PERCEPTION, "All delegates failed; no real detector", fallbackError)
                     null
                 }
             }

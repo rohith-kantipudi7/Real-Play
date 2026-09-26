@@ -55,6 +55,7 @@ fun CalibrationScreen(onReady: () -> Unit, onBack: () -> Unit) {
 
         var showCalibration by remember { mutableStateOf(true) }
         var showCapability by remember { mutableStateOf(true) }
+        var showCapabilityCard by remember { mutableStateOf(false) }
         var world by remember { mutableStateOf(WorldState.EMPTY) }
         var capReport by remember { mutableStateOf<SceneCapabilityReport?>(null) }
 
@@ -175,14 +176,43 @@ fun CalibrationScreen(onReady: () -> Unit, onBack: () -> Unit) {
                     ) { Text("Back") }
                     val usable = world.quality.good && world.objects.isNotEmpty()
                     Button(
-                        onClick = onReady,
+                        onClick = { showCapabilityCard = true },
                         enabled = usable,
                         modifier = Modifier.weight(1f)
                     ) { Text(if (usable) "Ready" else "Get set…") }
                 }
             }
+
+            // §15 SceneCapabilityCard — shown once between CALIBRATING and the first BRIEFING.
+            // The denominator "of N" is read from the LIVE registry (invariant 14).
+            if (showCapabilityCard) {
+                val cardModel = remember(world, capReport) {
+                    SceneCapabilityCardModel.from(
+                        cap = capReport?.capability ?: com.cognex.realplay.world.SceneCapability.EMPTY,
+                        ctx = capabilityCardContext(),
+                        registry = com.cognex.realplay.challenge.ChallengeRegistry.default()
+                    )
+                }
+                SceneCapabilityCard(
+                    model = cardModel,
+                    onDismiss = onReady,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
         }
     }
+}
+
+/** The difficulty context used to score the capability card's ranked list (§8, §15). */
+private fun capabilityCardContext(): com.cognex.realplay.challenge.GenerationContext {
+    val band = com.cognex.realplay.engine.SessionConfig.ageBand
+    val tier = com.cognex.realplay.challenge.Tier.EASY
+    return com.cognex.realplay.challenge.GenerationContext(
+        ageBand = band,
+        effectiveTier = tier,
+        knobs = com.cognex.realplay.challenge.DifficultyKnobs.forTier(tier, spread = 0.5f, stability = 1f),
+        trackOnlyMode = false
+    )
 }
 
 /** Formats the live [SceneCapabilityReport] for the dev overlay (§S3.5.4). */

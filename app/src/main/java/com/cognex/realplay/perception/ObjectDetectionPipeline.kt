@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import com.cognex.realplay.camera.CameraFrame
 import com.cognex.realplay.engine.AppSettings
+import com.cognex.realplay.perception.zone.ZoneDetector
 import com.cognex.realplay.util.RpLog
 import com.cognex.realplay.world.WorldState
 import com.cognex.realplay.world.WorldStateBuilder
@@ -30,6 +31,9 @@ class ObjectDetectionPipeline(
     private val world = WorldStateBuilder()
     val worldState: StateFlow<WorldState> = world.state
 
+    /** Colour-region zone detector (S7). Runs off the frame bitmap every 3rd frame. */
+    private val zoneDetector = ZoneDetector()
+
     /** Live capability + richness breakdown for the dev overlay (§S3.5.4). */
     val capabilityReport = world.capabilityReport
 
@@ -54,6 +58,7 @@ class ObjectDetectionPipeline(
                 lumaGrid = lastLumaGrid,
                 gridWidth = FrameQualityAnalyzer.GRID_W,
                 gridHeight = FrameQualityAnalyzer.GRID_H,
+                zones = zoneDetector.latestZones(),
                 trackOnlyMode = AppSettings.forceTrackOnly.value
             )
         }
@@ -74,6 +79,10 @@ class ObjectDetectionPipeline(
         // Sample a luminance grid for frame-quality every 5th frame (§12 cadence).
         if (frameCount++ % 5 == 0) {
             lastLumaGrid = FrameQualityAnalyzer.sampleLuma(frame.bitmap)
+        }
+        // Detect colour zones at most every 3rd frame (§S7 cadence).
+        if (frameCount % ZoneDetector.RUN_EVERY_N == 0) {
+            zoneDetector.onFrame(frame.bitmap)
         }
         mediaPipe?.setFrameBitmap(frame.bitmap)
         val mpImage = BitmapImageBuilder(frame.bitmap).build()

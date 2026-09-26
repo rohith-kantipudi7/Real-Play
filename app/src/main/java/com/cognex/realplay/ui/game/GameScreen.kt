@@ -38,6 +38,7 @@ import com.cognex.realplay.ui.camera.CameraPermissionGate
 import com.cognex.realplay.ui.camera.CameraPreview
 import com.cognex.realplay.ui.overlay.OverlayCanvas
 import com.cognex.realplay.ui.overlay.OverlayDetection
+import com.cognex.realplay.ui.overlay.OverlayZone
 import com.cognex.realplay.world.ColorTag
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
@@ -65,6 +66,7 @@ fun GameScreen(onFinish: () -> Unit, onBack: () -> Unit) {
         val analysisInfo by controller.analyzer.analysisInfo.collectAsState()
 
         var overlay by remember { mutableStateOf<List<OverlayDetection>>(emptyList()) }
+        var overlayZones by remember { mutableStateOf<List<OverlayZone>>(emptyList()) }
 
         DisposableEffect(controller) {
             val pipeline = ObjectDetectionPipeline(context.applicationContext)
@@ -81,6 +83,12 @@ fun GameScreen(onFinish: () -> Unit, onBack: () -> Unit) {
                             color = colorForTag(obj.color)
                         )
                     }
+                    overlayZones = world.zones.map { z ->
+                        OverlayZone(
+                            polygon = z.polygon.map { it.x to it.y },
+                            color = colorForTag(z.color)
+                        )
+                    }
                 }
             }
             onDispose {
@@ -88,6 +96,7 @@ fun GameScreen(onFinish: () -> Unit, onBack: () -> Unit) {
                 job.cancel()
                 pipeline.close()
                 overlay = emptyList()
+                overlayZones = emptyList()
             }
         }
         DisposableEffect(controller) { onDispose { controller.shutdown() } }
@@ -118,7 +127,8 @@ fun GameScreen(onFinish: () -> Unit, onBack: () -> Unit) {
                 isFrontCamera = controller.isFrontCamera,
                 modifier = Modifier.fillMaxSize(),
                 showCalibration = false,
-                detections = overlay
+                detections = overlay,
+                zones = overlayZones
             )
 
             HudBar(

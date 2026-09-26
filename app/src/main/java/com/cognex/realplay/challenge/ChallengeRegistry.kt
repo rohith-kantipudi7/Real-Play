@@ -72,7 +72,6 @@ class ChallengeRegistry(generators: List<ChallengeGenerator>) {
         pinnedGeneratorId: String? = null
     ): SelectionResult {
         val ranked = generators.map { gen -> scoreOf(gen, cap, ctx) }
-
         val winner: ChallengeGenerator = when (mode) {
             SelectionMode.PINNED -> {
                 val target = pinnedGeneratorId
@@ -94,6 +93,20 @@ class ChallengeRegistry(generators: List<ChallengeGenerator>) {
         val raw = gen.maxStepsForTier(ctx.effectiveTier).coerceIn(1, 3)
         return minOf(raw, Difficulty.ageStepCap(ctx.ageBand))
     }
+
+    /**
+     * Scores every generator WITHOUT binding a spec (Architecture §6.3, §15). Used by the
+     * SceneCapabilityCard and the dev screen to show the live ranked list — including the zeros with
+     * their reasons — without needing a full [WorldState]. Ordered best-first, deterministic.
+     */
+    fun rank(cap: SceneCapability, ctx: GenerationContext): List<RankedCandidate> =
+        generators.map { scoreOf(it, cap, ctx) }
+            .sortedWith(compareByDescending<RankedCandidate> { it.score }.thenBy { it.generatorId })
+
+    /** How many games are actually possible in this scene — the numerator of "K of N" (§15). */
+    fun possibleCount(cap: SceneCapability, ctx: GenerationContext): Int =
+        generators.count { scoreOf(it, cap, ctx).score > 0f }
+
 
     private fun scoreOf(gen: ChallengeGenerator, cap: SceneCapability, ctx: GenerationContext): RankedCandidate {
         // 1. requirement + capability pre-filter.
@@ -157,5 +170,18 @@ class ChallengeRegistry(generators: List<ChallengeGenerator>) {
         /** A tiny helper for callers that only need the max score present, for the capability card. */
         fun topScore(ranked: List<RankedCandidate>): Float =
             ranked.fold(0f) { acc, c -> max(acc, c.score) }
+
+        /**
+         * The canonical shipped registry (Architecture §7). The ONE place the shipped generator set
+         * is declared, so the runtime and the SceneCapabilityCard/dev screen always agree on N.
+         */
+        fun default(): ChallengeRegistry = ChallengeRegistry(
+            listOf(
+                com.cognex.realplay.challenge.generators.G0LastResortGenerator(),
+                com.cognex.realplay.challenge.generators.G1MoveNearGenerator(),
+                com.cognex.realplay.challenge.generators.G2DropZoneGenerator(),
+                com.cognex.realplay.challenge.generators.G3FindColorGenerator()
+            )
+        )
     }
 }

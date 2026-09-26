@@ -24,6 +24,12 @@ data class OverlayDetection(
     val color: Color = Color(0xFF25E0C8)
 )
 
+/** A confirmed zone to draw, as an ordered NORMALIZED polygon (S7). */
+data class OverlayZone(
+    val polygon: List<Pair<Float, Float>>,
+    val color: Color = Color(0xFFFFB13A)
+)
+
 private val CalibrationBoxColor = Color(0xFF25E0C8) // turquoise
 private val CrosshairColor = Color(0xFFFFB13A)      // tangerine
 
@@ -43,7 +49,8 @@ fun OverlayCanvas(
     isFrontCamera: Boolean,
     modifier: Modifier = Modifier,
     showCalibration: Boolean = false,
-    detections: List<OverlayDetection> = emptyList()
+    detections: List<OverlayDetection> = emptyList(),
+    zones: List<OverlayZone> = emptyList()
 ) {
     Canvas(modifier = modifier) {
         val info = analysisInfo ?: return@Canvas
@@ -58,6 +65,10 @@ fun OverlayCanvas(
             viewH = size.height.toInt(),
             scaleType = ScaleType.FILL_CENTER
         )
+
+        zones.forEach { z ->
+            drawZoneShape(mapper, z.polygon, z.color)
+        }
 
         detections.forEach { d ->
             drawDetectionBox(mapper, d.left, d.top, d.right, d.bottom, d.color, d.label)
@@ -99,7 +110,7 @@ fun DrawScope.drawDetectionBox(
     }
 }
 
-/** Draws a zone polygon from NORMALIZED vertices. Unused until S7. */
+/** Draws a zone polygon from NORMALIZED vertices (S7). */
 fun DrawScope.drawZoneShape(
     mapper: CoordinateMapper,
     polygon: List<Pair<Float, Float>>,

@@ -4,6 +4,8 @@
 
 > **v3.5 amendment (composition line only):** the Challenge Registry is a *library of verifiable skills*, and an optional AI *composer* arranges those skills — bound to the live WorldState and affordances — into `ChallengeSpec`s. The truth line, data model and freeze gate are unchanged. See §0.1 and §6.5.
 
+> **v3.6 amendment (presentation & engagement, truth line untouched):** three scalable dimensions are added *around* the frozen engine — (a) **Party / Event mode**, a crowd-engagement orchestration over the same verifiable skills for functions and birthday parties; (b) **visual-first coaching**, showing mimic-able visual cues instead of relying on text/voice, primary for toddlers and young children; and (c) a **presentation-target seam** that makes RealPlay VR-ready and horizontally scalable while shipping on mobile today. None of these touch perception, the verifier, or PASS/FAIL. See §0.2, §3.6 and §25–§27.
+
 Device: iQOO 15 · SD 8 Elite Gen 5 · 16 GB · Android 16
 Build: ~15 **critical-path** hours · 2 people · 2 laptops · offline-first
 
@@ -38,6 +40,18 @@ v3.4 froze the truth line. **v3.5 reframes the composition line without touching
 | **S2** | Generators were "the 8 games" | Generators are **skill templates** over the closed primitive set (§4.1). The deterministic composer builds from them and remains the always-present floor |
 
 **Nothing on the truth line moves.** The composer may only arrange primitives the verifier already knows how to measure; every proposal passes the same validator and safety gate; a rejected or absent proposal falls back to the deterministic composer with zero user-visible difference. Invariants 18–20 (§20) make this binding. The §3.4 package layout, §4 data model, §4.1 closed rule set and §7 generators are unchanged in shape — only their **framing, and the composer's authority to arrange them,** are new.
+
+## 0.2 v3.6 — party engagement, visual-first coaching, and a VR-ready seam
+
+v3.5 reframed the composition line. **v3.6 adds three presentation- and engagement-layer dimensions and changes nothing on the truth line.** Every new capability consumes the *same* WorldState, the *same* registered skills, and the *same* verifier verdicts; none can produce a PASS, invent a RuleId, or bypass a validator.
+
+| # | Was | Now |
+|---|---|---|
+| **P1** | One implicit session shape: a solo / turn-based sequence of challenges | **Session modes (§25).** `SessionMode` is explicit: **SOLO** (today's flow) and **PARTY** — a crowd-engagement orchestration for functions and birthday parties. PARTY sequences the *same* verifiable skills into fast, energetic, multi-player rounds with a roster, live leaderboard, team play and pacing. It adds no new verifier and no new way to win |
+| **P2** | Instructions were **text + TTS**; toddlers must attend to language they can't yet follow | **Visual-first coaching (§26).** The engine emits a typed `VisualCue` track (highlight the target, animate the path/arrow, show a ghost/mimic demonstration, pictograph the goal) alongside — and, for TODDLER/EARLY, *instead of* — words. Children copy what they see. Text/voice become optional reinforcement, never the carrier of the task |
+| **P3** | Presentation was implicitly mobile Compose + CameraX, welded to the engine | **Presentation-target seam (§3.6, §27).** The engine already emits a presentation-agnostic `StateFlow<GameUiState>`. v3.6 formalises a `RenderModel` (a device-independent scene / overlay description) behind a `PresentationTarget` interface. **`MobileTarget` ships now** (Compose 2D over the camera); **`VrTarget` is designed, not built** — a future stereoscopic / spatial renderer consuming the identical `RenderModel`. RealPlay is VR-ready and horizontally scalable without touching perception or verification |
+
+**Scope guard.** v3.6 lives entirely in `present/`, `coach/`, `party/` and the `engine/` orchestration seam. The §4 data model, §4.1 closed rule set, §4.2 TemporalGate, §6 selection, §7 generators and the §21 freeze gate are **unchanged**. Invariants 21–25 (§20) make the separation binding. We ship the mobile showcase of all three now; VR is a roadmap target the same `RenderModel` already supports.
 
 ---
 
@@ -127,6 +141,9 @@ Tripod + tablecloth + lamp buy more demo reliability than any model choice.
 | Difficulty | **Two axes — numeric knobs AND step count** (§8.1) |
 | Generators | **8 skill templates shipped** (G0–G7). G8/G9 deferred (§24) |
 | Demo | RECOMMENDED / OPEN / PINNED. **No forced script** |
+| Session modes | **SOLO** (primary) · **PARTY** for functions & birthday parties (§25) — same skills, crowd orchestration, no new verifier |
+| Coaching | **Visual-first (§26).** Mimic-able visual cues are primary; text / TTS are reinforcement. TODDLER / EARLY are visuals-led |
+| Presentation | **Mobile ships now**, **VR-ready by design (§3.6, §27).** One `RenderModel` behind a `PresentationTarget`; `VrTarget` deferred |
 | Build | Single `:app` module. No Hilt, no Room, no multi-module |
 
 ## 3. System diagram
@@ -206,6 +223,11 @@ com.cognex.realplay
 │                PlayerRegistry · GameViewModel · DemoController · SessionStore
 ├── ai/          LanguageModel · GemmaModel · CloudModel · MockModel · Composer
 │                PromptBuilder · SchemaValidator · Narrator
+├── present/     RenderModel · SceneGraph · Overlay · PresentationTarget
+│                MobileTarget · VrTarget (deferred stub)         [v3.6, §3.6/§27]
+├── coach/       VisualCue · CoachTrack · CuePlanner  (JVM-pure)  [v3.6, §26]
+├── party/       SessionMode · PartyOrchestrator · Roster · Leaderboard
+│                RoundPacer                                       [v3.6, §25]
 └── device/      DeviceCapabilities · PerformanceProfile · ThermalManager
 ```
 `world/`, `challenge/`, `verify/` contain **zero Android imports** → fully JVM-testable.
@@ -223,6 +245,26 @@ planarSurfaceAvailable  = false  → metric evidence forbidden; camera-space onl
 ```
 
 **Downgrade is one-way within a round and re-evaluated each round.** If labels degrade mid-session, `trackOnlyMode` flips on, semantic generators drop out with an explicit reason, and the UI switches to highlight-colour phrasing. Track-only must never silently become semantic again inside the same challenge.
+
+### 3.6 Presentation targets — the VR-ready seam ⭐ v3.6
+
+The engine never draws. It emits a **device-independent description** of what to show, and a `PresentationTarget` renders it for the current device.
+
+```
+GAME ENGINE ──StateFlow<GameUiState>──► RenderModel  (pure — no Android/Compose)
+                                          │  SceneGraph: camera/passthrough layer,
+                                          │  object highlights, zones, skeleton,
+                                          │  path arrows, ghost demos, HUD, cue track
+                                          ▼
+                             ┌────────── PresentationTarget ──────────┐
+                             │ MobileTarget  (SHIPS NOW)               │
+                             │   Compose 2D overlay on the CameraX feed│
+                             │ VrTarget      (DESIGNED, NOT BUILT §27) │
+                             │   stereoscopic/spatial, same RenderModel│
+                             └─────────────────────────────────────────┘
+```
+
+`RenderModel` and `coach/` are **pure JVM** (zero Android imports), like `world/`, `challenge/`, `verify/`. That is exactly what makes a second target (VR) a drop-in: perception, world model, skills and verdicts are already presentation-agnostic. **A `PresentationTarget` may only render what the engine put in the `RenderModel`; it can never read perception, run a verifier, or alter a verdict** (invariant 21).
 
 ## 4. Data model
 
@@ -655,6 +697,8 @@ Toddler mode: computed internally, UI shows **stars only** — never a number, n
 
 Pose-dependent entries are parenthesised because pose is P1 — every band remains playable with pose disabled.
 
+**Visual-first by band (v3.6, §26).** In **TODDLER** and **EARLY** the `VisualCue` track is the *primary* carrier: the target object pulses, an animated arrow or path shows the motion, and a looping ghost/mimic demonstrates the goal — a child succeeds by copying what they see, not by parsing a sentence. Text is decorative and TTS is gentle reinforcement. **MID**/**OLDER** keep language primary with visual cues as support. This changes no spec, threshold or verdict — only how the same challenge is presented (invariant 23).
+
 **Toddler hard constraints — enforced in the engine, not the theme:**
 ```
 1. No timers. No clock anywhere. Strip timeLimitMs from every spec.
@@ -1072,6 +1116,19 @@ UI unfinished at h14    → STOP features, polish 3 screens (quality = 30% of th
     difference.                                                          [v3.5]
 20. The composer decides WHICH verifiable game is played and HOW it is worded,
     never HOW it is judged. PASS/FAIL/UNSURE remains §4 verification code alone. [v3.5]
+21. Presentation is a pure seam: a PresentationTarget renders only the engine's
+    RenderModel and can never read perception, invoke a verifier, or alter a
+    verdict. MobileTarget and any future VrTarget consume the identical model. [v3.6]
+22. RenderModel and the coach/ VisualCue track are pure JVM (no Android imports),
+    so a second target (VR) adds no dependency to world/, challenge/ or verify/. [v3.6]
+23. Visual-first coaching changes only presentation. It never edits a ChallengeSpec,
+    threshold, step count, safety rule or verdict; in TODDLER/EARLY it is primary,
+    but the spec that is judged is unchanged.                                [v3.6]
+24. PARTY mode composes only registered, verifiable skills through the same
+    composer, validator and SafetyFilter as SOLO. It adds no RuleId and no new
+    path to PASS; the verifier remains the sole authority.                   [v3.6]
+25. Every v3.6 capability is deletable: remove party/, coach/ or the VR target
+    and the SOLO mobile core still scans, selects, plays, verifies and scores. [v3.6]
 ```
 
 ## 21. Architecture freeze gate
@@ -1134,6 +1191,89 @@ Mention in Q&A as roadmap; **do not build during the event.**
 - **G9 Sequence Sprint** — cross-generator missions (a step from G2 + a step from G4 on one clock). Distinct from v3.4's `maxStepsForTier`, which chains a generator's *own* primitive. `MissionRunner` supports both; only the same-primitive case ships.
 - **3–4 simultaneous players** — identity design supports it; only 1–2 validated.
 - **Metric calibration** — `planarSurfaceAvailable` and `MeasurementDomain.METRIC` wired; calibration pass deferred.
+- **`VrTarget` — VR / spatial presentation (§27)** — the `RenderModel` and `PresentationTarget` seam are built and the mobile target ships; the stereoscopic / spatial renderer is designed, not built. *"The engine is already presentation-agnostic — a VR target is a new renderer over the same scene model, not a rewrite"* is the honest claim.
 - **VLM scene enrichment · Kokoro voice · Qualcomm NPU** — P2, §S13.
 
 *"The verifier for Memory Rebuild is already written and unit-tested; we just didn't ship the generator"* is a strong answer. Claiming they work is not.
+
+---
+
+# PART VIII — v3.6 EXTENSIONS (presentation & engagement)
+
+> These three sections layer on the frozen engine. Each is deletable (invariant 25) and none touches perception or verification. The mobile showcase of all three ships now; VR is a roadmap target over the same `RenderModel`.
+
+## 25. Party / Event mode — crowd engagement
+
+Functions and birthday parties have a room full of people and low energy. RealPlay already turns *any* surface or body into a verifiable game; PARTY mode turns that into a **crowd loop** — fast rounds, rotation, a live leaderboard and celebration — without inventing a single new way to win.
+
+**What it is.** A session orchestrator over the *existing* skill library. It adds **no generators and no verifiers**. It sequences them for pace and participation.
+
+```
+SOLO   : one player / turn-based · one challenge at a time · learn-and-master pacing
+PARTY  : a roster of players/teams · rapid short rounds · rotation · live leaderboard
+         · energetic feedback (sound, bursts, streaks) · "pass the phone" or tripod hot-seat
+```
+
+**Orchestration (`party/`).**
+- `Roster` — 2–8 participants or 2 teams; colour-band / hot-seat identity (reuses §5 player identity, no new tracking).
+- `RoundPacer` — short, capped rounds (e.g. 20–40 s) with a visible countdown; auto-advances so the room never stalls. Toddler-safe pacing when the band is TODDLER (no elimination, no clock pressure).
+- `PartyOrchestrator` — picks the next challenge with **OPEN-style controlled variety** (§16) so consecutive players get *different* games from the same table; enforces fairness (comparable feasibility) across a rotation.
+- `Leaderboard` — cumulative score / streaks with a celebratory reveal; team aggregation.
+
+**Formats (all built from shipped skills).**
+- **Relay / hot-seat** — each participant gets one quick round; highest score/streak wins.
+- **Head-to-head** — two players, same challenge, first to a verified PASS.
+- **Team vs team** — alternating members, aggregate score.
+- **Co-op streak** — the whole room keeps a shared streak alive.
+
+**Energy, honestly.** Bigger celebratory bursts, sound cues, streak call-outs and a leaderboard reveal drive engagement — but a round is still won only by the verifier. Deliberate failure still fails (invariant 24; the §16 forbidden list applies to PARTY too). Safety (§11) and age bands (§10) are unchanged; a birthday party of small children runs TODDLER pacing with no timers and no elimination.
+
+**Why it scales.** PARTY is pure orchestration over the same engine and the same presentation seam — it works on mobile now and on a future VR target unchanged.
+
+## 26. Visual-first coaching — show, don't tell
+
+Toddlers and young children don't parse instructions; they copy what they see. v3.6 makes the game **demonstrate** the goal instead of describing it.
+
+**The cue track (`coach/`, pure JVM).** For every active step the engine plans a typed, ordered `VisualCue` track that the presentation target renders:
+
+```kotlin
+sealed interface VisualCue {
+  data class Highlight(val trackId: Int, val style: Pulse) : VisualCue      // "this one" — pulse/glow the target actor
+  data class PathArrow(val from: NormPoint, val to: NormPoint) : VisualCue  // animated route for a move / drop
+  data class GhostDemo(val kind: DemoKind, val loop: Boolean) : VisualCue   // looping mimic of the target pose / action
+  data class Pictograph(val symbol: Symbol) : VisualCue                     // colour / shape / goal as a language-free icon
+  data class ZonePulse(val zoneId: String) : VisualCue                      // the target zone breathes
+}
+```
+
+`CuePlanner` derives the track **deterministically from the same `ChallengeSpec` the verifier will judge** — the highlight always marks the *actual* target actor, the arrow always ends at the *actual* goal, the ghost always shows the *actual* pose. **Cues are generated from the spec, never authored by the model, and never influence the verdict.**
+
+**By age band (§10).**
+- **TODDLER / EARLY** — cues are *primary*. Target pulses, arrow / path animates, ghost loops, goal pictograph shown. Words are decorative; TTS is gentle reinforcement. A child succeeds by imitation.
+- **MID / OLDER** — language primary, cues as support (a brief highlight, a fading arrow).
+
+**On mobile now.** All cues render in the Compose overlay over the live camera (pulsing highlight, animated arrow, looping ghost silhouette, big pictograph). On a future VR target the identical `VisualCue` track renders spatially — no engine change.
+
+**Guarantees.** Visual-first is presentation only (invariant 23). It never changes a spec, threshold, step count, safety rule, or the PASS / FAIL / UNSURE verdict.
+
+## 27. Presentation targets & VR scalability
+
+RealPlay's engine is a physical-game *referee*, not a renderer. Because perception, the world model, the skills and the verdicts are already presentation-agnostic (§3.6), a new display is a new **target**, not a new product.
+
+**The contract.**
+```
+engine  ──►  RenderModel (pure)  ──►  PresentationTarget  ──►  device
+                                       ├─ MobileTarget  (ships now)
+                                       └─ VrTarget      (designed, not built)
+```
+- `RenderModel` — a device-independent scene description: the camera / passthrough layer, actor highlights, zones, skeleton, path arrows, ghost demos, HUD and the `VisualCue` track. Pure JVM.
+- `PresentationTarget` — `fun render(model: RenderModel)` plus an input / pointer callback. The engine depends only on this interface.
+- `MobileTarget` — today's Compose overlay on the CameraX feed. The full showcase (including PARTY and visual-first coaching) runs here.
+- `VrTarget` — **deferred (§24).** A stereoscopic / spatial renderer that consumes the *same* `RenderModel` over headset passthrough: object highlights and ghost demos become world-anchored, the leaderboard a floating panel. No change to perception or verification.
+
+**Why this is genuinely scalable.**
+- **No truth-line coupling.** A VR target cannot read perception or judge — invariant 21. It only draws.
+- **One source of scene truth.** Both targets render the identical `RenderModel`, so a game verified on mobile behaves identically on VR.
+- **Deletable.** Remove `VrTarget` and nothing else changes (invariant 25).
+
+**Honest framing for Q&A.** *"We don't ship VR today; we ship the seam. The engine already emits a device-independent scene model and the mobile target renders it. A VR headset is another target over the same model — that's the scalability story, and you can see it working on the phone right now."*

@@ -105,6 +105,11 @@ dependencies {
 //                          missing. Wired ahead of every build via preBuild.
 // ─────────────────────────────────────────────────────────────────────────────
 val tierAModels: Map<String, String> = mapOf(
+    // Primary object detector: efficientdet_lite2 FLOAT32 — markedly more accurate than the
+    // int8 lite0, and (being float) it can run on the GPU delegate. See MediaPipeObjectDetector.
+    "efficientdet_lite2.tflite" to
+        "https://storage.googleapis.com/mediapipe-models/object_detector/efficientdet_lite2/float32/latest/efficientdet_lite2.tflite",
+    // Fallback object detector: efficientdet_lite0 int8 (CPU-only, tiny). Kept as a safety net.
     "efficientdet_lite0.tflite" to
         "https://storage.googleapis.com/mediapipe-models/object_detector/efficientdet_lite0/int8/1/efficientdet_lite0.tflite",
     "pose_landmarker_lite.task" to

@@ -70,6 +70,26 @@ object CFix {
         nameable: Boolean = true
     ): Affordance = Affordance(trackId, movable, handheld, container, landmark, colorful, distinct, nameable)
 
+    /** An axis-aligned square zone centred at (cx, cy) with half-size [half]. */
+    fun zone(
+        zoneId: String = "z0",
+        cx: Float = 0.5f,
+        cy: Float = 0.5f,
+        half: Float = 0.1f,
+        color: ColorTag = ColorTag.RED,
+        source: com.cognex.realplay.world.ZoneSource = com.cognex.realplay.world.ZoneSource.DETECTED
+    ): Zone = Zone(
+        zoneId = zoneId,
+        polygon = listOf(
+            NormPoint(cx - half, cy - half),
+            NormPoint(cx + half, cy - half),
+            NormPoint(cx + half, cy + half),
+            NormPoint(cx - half, cy + half)
+        ),
+        color = color,
+        source = source
+    )
+
     fun world(
         objects: List<TrackedObject> = emptyList(),
         players: List<TrackedPlayer> = emptyList(),

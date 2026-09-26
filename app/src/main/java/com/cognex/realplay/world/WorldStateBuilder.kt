@@ -48,6 +48,7 @@ class WorldStateBuilder {
         lumaGrid: IntArray? = null,
         gridWidth: Int = 0,
         gridHeight: Int = 0,
+        zones: List<Zone> = emptyList(),
         trackOnlyMode: Boolean = false
     ): WorldState {
         val frameId = frameCounter++
@@ -60,14 +61,14 @@ class WorldStateBuilder {
             lastQuality = FrameQualityAnalyzer.analyze(lumaGrid, gridWidth, gridHeight)
         }
 
-        // Provisional world (players/zones empty until the pose/zone stages) for affordance
-        // derivation and capability scoring (§6, S3.5).
+        // Provisional world (players empty until the pose stage; zones supplied by the S7 zone
+        // detector) for affordance derivation and capability scoring (§6, S3.5).
         val provisional = WorldState(
             frameId = frameId,
             timestampMs = timestampMs,
             objects = objects,
             players = emptyList(),
-            zones = emptyList(),
+            zones = zones,
             quality = lastQuality,
             affordances = emptyList(),
             capability = SceneCapability.EMPTY

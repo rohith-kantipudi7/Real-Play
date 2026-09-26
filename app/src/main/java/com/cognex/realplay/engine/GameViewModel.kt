@@ -13,8 +13,6 @@ import com.cognex.realplay.challenge.DifficultyKnobs
 import com.cognex.realplay.challenge.GenerationContext
 import com.cognex.realplay.challenge.SelectionMode
 import com.cognex.realplay.challenge.SelectionResult
-import com.cognex.realplay.challenge.generators.G0LastResortGenerator
-import com.cognex.realplay.challenge.generators.G1MoveNearGenerator
 import com.cognex.realplay.util.RpLog
 import com.cognex.realplay.verify.Evidence
 import com.cognex.realplay.verify.VerificationOutcome
@@ -51,7 +49,7 @@ class GameViewModel(
 ) : ViewModel() {
 
     private val registry: ChallengeRegistry = challengeRegistry
-        ?: ChallengeRegistry(listOf(G0LastResortGenerator(), G1MoveNearGenerator()))
+        ?: ChallengeRegistry.default()
 
     /**
      * The optional ON-DEVICE Gemma composer (§6.5). Off by default; only proposes when
@@ -255,8 +253,25 @@ class GameViewModel(
         sm.transition(GameState.INSTRUCTION)
         sm.transition(GameState.PLAYING)
         RpLog.i(RpLog.Tag.ENGINE, "Selected ${result.winnerId} (${result.spec.type}) tier=${ctx.effectiveTier} budget=${result.stepBudget}")
+        logRankedCandidates(result)
         publishPlaying(result.spec, firstTick(result.spec), 0L)
         requestComposeIfNeeded(world, cap, ctx, result)
+    }
+
+    /**
+     * Logs the full ranked candidate list for this selection (Architecture §13 S7 gate — "ranked
+     * list logged"). Every generator appears with its score to 2dp; a zero always carries its
+     * reason, which is exactly what makes an empty-scene demo convincing.
+     */
+    private fun logRankedCandidates(result: SelectionResult) {
+        val line = result.ranked
+            .sortedWith(compareByDescending<com.cognex.realplay.challenge.RankedCandidate> { it.score }.thenBy { it.generatorId })
+            .joinToString(" · ") { c ->
+                val marker = if (c.generatorId == result.winnerId) "*" else ""
+                val tail = c.zeroReason?.let { " (${it})" } ?: ""
+                "$marker${c.generatorId}=${"%.2f".format(c.score)}$tail"
+            }
+        RpLog.i(RpLog.Tag.ENGINE, "Ranked: $line")
     }
 
     private fun onPass(spec: ChallengeSpec, tick: MissionRunner.Tick, elapsedMs: Long) {

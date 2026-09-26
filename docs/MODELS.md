@@ -57,3 +57,74 @@ adb logcat -s RealPlay/MODEL
 
 Tier-B models live in `/sdcard/realplay/models/` and are optional by definition. The app runs
 identically with that directory empty. See §1.2 of the architecture.
+
+---
+
+# Full download reference — every model, where to get it
+
+> Quick status: **Tier-A ✅ all present in the APK.** **Tier-B ⬇ Gemma downloading / ✅ Qwen local.**
+
+## 1. Tier-A (REQUIRED — in the APK, ~20 MB)
+
+Public URLs, no login. Fetched by `:app:fetchTierAModels` into `app/src/main/assets/models/`.
+
+| Asset | Size | Delegate | Source URL |
+|---|---|---|---|
+| `efficientdet_lite0.tflite` | ~4.5 MB | **CPU/XNNPACK** (int8) | `https://storage.googleapis.com/mediapipe-models/object_detector/efficientdet_lite0/int8/1/efficientdet_lite0.tflite` |
+| `pose_landmarker_lite.task` | ~6 MB | CPU/GPU | `https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/latest/pose_landmarker_lite.task` |
+| `pose_landmarker_full.task` | ~9 MB | CPU/GPU | `https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/latest/pose_landmarker_full.task` |
+
+> ⚠ `efficientdet_lite0` is **int8** → object detection runs on **CPU** (GPU delegate fails at
+> runtime for int8 models). Do not switch it to GPU.
+
+**Offline TTS (S10)** — installed via the OS, not a file:
+Phone → Settings → System → Languages → Text-to-speech → install **en-IN + en-US**, verify in airplane mode.
+
+## 2. Tier-B (OPTIONAL — the on-device LLM, side-loaded to the phone)
+
+Powers the AI composer (§6.5, §S11). App is fully playable **without** it. Must be a MediaPipe
+**`.task`** bundle (NOT GGUF). Push to `/sdcard/realplay/models/`; first match wins:
+1. `gemma3-1b-it-int4.task` (primary)  2. `qwen2.5-1.5b-instruct.task` (backup)
+
+| Model | License | Size | Login? | Where |
+|---|---|---|---|---|
+| **Gemma 3 1B IT** | Gemma license | ~0.5–1.0 GB | **Yes** | HF: https://huggingface.co/litert-community/Gemma3-1B-IT · Kaggle: https://www.kaggle.com/models/google/gemma-3/tfLite |
+| **Qwen2.5-1.5B-Instruct** | Apache-2.0 | ~1.6 GB | No | `https://huggingface.co/litert-community/Qwen2.5-1.5B-Instruct/resolve/main/Qwen2.5-1.5B-Instruct_multi-prefill-seq_q8_ekv1280.task` |
+
+- **Gemma:** sign in → accept the license → **Files** tab → download a `.task` → **rename to** `gemma3-1b-it-int4.task`.
+- **Qwen:** already downloaded to `%USERPROFILE%\realplay-models\qwen2.5-1.5b-instruct.task`.
+
+**Install onto the phone (USB debugging authorized):**
+```powershell
+# Helper (pushes the Qwen backup):
+powershell -ExecutionPolicy Bypass -File scripts\install-local-llm.ps1
+
+# Or manual, either model:
+$adb="$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe"
+& $adb shell mkdir -p /sdcard/realplay/models
+& $adb push "<path-to>.task" /sdcard/realplay/models/gemma3-1b-it-int4.task
+```
+Then in-app: **Settings → AI composer → "Use Gemma to compose games" → ON**.
+
+## 3. Optional / P2 (designed, NOT required for the demo)
+
+| Model | Purpose | Stage | Notes |
+|---|---|---|---|
+| `realplay_props.tflite` | Fine-tuned detector on your props | §1.5 | Colab ~40 min, high ROI, same interface |
+| MoveNet MultiPose | Pose backup if MediaPipe Pose too slow | S8 | P2 |
+| SmolVLM-256M / Qwen2-VL-2B | VLM scene enrichment | S13 | P2 |
+| Kokoro-82M ONNX (+ onnxruntime-android) | Higher-quality offline TTS | S13 | P2 |
+| Qualcomm AI Hub (NPU compile) | NPU acceleration | S13 | P2 — never claimed unless measured |
+
+## Master checklist
+
+```
+[x] A1 efficientdet_lite0.tflite      (in APK)
+[x] A2 pose_landmarker_lite.task      (in APK)
+[x] A3 pose_landmarker_full.task      (in APK)
+[ ] Offline TTS en-IN + en-US installed + verified in airplane mode
+[~] B1 gemma3-1b-it-int4.task         (downloading — HF/Kaggle login) → rename → adb push
+[x] B2 qwen2.5-1.5b-instruct.task     (downloaded locally)            → adb push (backup)
+[ ] Tier-B pushed to /sdcard/realplay/models/ + AI toggle ON
+[ ] C1 realplay_props.tflite          (optional fine-tune)
+```
