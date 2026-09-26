@@ -17,11 +17,11 @@ Goal: PLAY → live camera → games. No mode/age/player form. The camera *is* t
 
 | Task | Status | Notes |
 |---|---|---|
-| Remove the setup screen from the main flow (PLAY → camera directly) | ⬜ | Today: `ModeSelectScreen` (Objects/Body/Mixed + Age×4 + Players×2) sits in between |
-| Auto‑sense the scene (objects present / person present) and pick the game family | 🟡 | Engine already supports MIXED + auto pose‑enable; needs wiring so no mode is asked |
-| Move mode/age/players to an **Advanced** screen with sensible defaults | ⬜ | Defaults: MIXED, "Pro/Kids" audience, 1 player |
-| Add a small **Advanced** link on Home | ⬜ | Keeps main flow clean |
-| Capability reveal after scan ("I can see: cup, bottle, book") | ✅ | `SceneCapabilityCard` already redesigned to list detected objects |
+| Remove the setup screen from the main flow (PLAY → camera directly) | ✅ | PLAY now sets defaults (MIXED, MIDDLE, 1p) and goes straight to CALIBRATION |
+| Auto‑sense the scene (objects present / person present) and pick the game family | 🟡 | Defaults to MIXED so both work; explicit auto‑sense still optional |
+| Move mode/age/players to an **Advanced** screen with sensible defaults | ✅ | Old `ModeSelectScreen` kept, reachable via Home → Advanced |
+| Add a small **Advanced** link on Home | ✅ | Home bottom row: Settings · Advanced · VR Preview |
+| Capability reveal after scan ("I can see: cup, bottle, book") | ✅ | `SceneCapabilityCard` lists detected objects |
 | "Creating your game…" compose phase | ✅ | Done (compose‑first flow, part 6) |
 
 ---

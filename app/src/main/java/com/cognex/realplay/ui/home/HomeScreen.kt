@@ -33,7 +33,8 @@ fun HomeScreen(
     onPlay: () -> Unit,
     onParty: () -> Unit,
     onVrPreview: () -> Unit,
-    onSettings: () -> Unit
+    onSettings: () -> Unit,
+    onAdvanced: () -> Unit = {}
 ) {
     Box(modifier = Modifier.fillMaxSize()) {
         RpHeroBackground()
@@ -90,6 +91,7 @@ fun HomeScreen(
             Spacer(Modifier.height(8.dp))
             Row(modifier = Modifier.fillMaxWidth()) {
                 RpTextButton(text = "Settings", onClick = onSettings, modifier = Modifier.weight(1f))
+                RpTextButton(text = "Advanced", onClick = onAdvanced, modifier = Modifier.weight(1f))
                 RpTextButton(text = "VR Preview", onClick = onVrPreview, modifier = Modifier.weight(1f))
             }
             Spacer(Modifier.weight(0.15f))

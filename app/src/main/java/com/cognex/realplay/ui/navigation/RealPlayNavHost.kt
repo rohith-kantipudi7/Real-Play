@@ -8,6 +8,9 @@ import androidx.navigation.compose.rememberNavController
 import com.cognex.realplay.device.DeviceCapabilities
 import com.cognex.realplay.device.PerformanceProfile
 import com.cognex.realplay.engine.PartyRuntime
+import com.cognex.realplay.engine.PlayMode
+import com.cognex.realplay.engine.SessionConfig
+import com.cognex.realplay.challenge.AgeBand
 import com.cognex.realplay.ui.calibration.CalibrationScreen
 import com.cognex.realplay.ui.game.GameScreen
 import com.cognex.realplay.ui.home.HomeScreen
@@ -34,11 +37,19 @@ fun RealPlayNavHost(
             HomeScreen(
                 onPlay = {
                     PartyRuntime.clear()
-                    navController.navigate(Routes.MODE_SELECT)
+                    // Point & Play (§1): zero-config — sensible defaults, straight to the camera.
+                    SessionConfig.mode = PlayMode.MIXED
+                    SessionConfig.ageBand = AgeBand.MIDDLE
+                    SessionConfig.playerCount = 1
+                    navController.navigate(Routes.CALIBRATION)
                 },
                 onParty = { navController.navigate(Routes.PARTY_ROSTER) },
                 onVrPreview = { navController.navigate(Routes.VR_PREVIEW) },
-                onSettings = { navController.navigate(Routes.SETTINGS) }
+                onSettings = { navController.navigate(Routes.SETTINGS) },
+                onAdvanced = {
+                    PartyRuntime.clear()
+                    navController.navigate(Routes.MODE_SELECT)
+                }
             )
         }
         composable(Routes.MODE_SELECT) {
