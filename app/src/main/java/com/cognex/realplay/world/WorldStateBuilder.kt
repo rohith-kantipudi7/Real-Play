@@ -21,9 +21,16 @@ class WorldStateBuilder {
 
     private val tracker = Tracker()
     private val stability = StabilityDetector()
+    private val affordanceEngine = AffordanceEngine()
 
     private val _state = MutableStateFlow(WorldState.EMPTY)
     val state: StateFlow<WorldState> = _state.asStateFlow()
+
+    private val _capabilityReport = MutableStateFlow(
+        SceneCapabilityReport(SceneCapability.EMPTY, EMPTY_RICHNESS, 0f, 0f, 0f)
+    )
+    /** Full capability + richness breakdown for the dev overlay (§S3.5.4). */
+    val capabilityReport: StateFlow<SceneCapabilityReport> = _capabilityReport.asStateFlow()
 
     private var frameCounter = 0L
     private var lastQuality = FrameQuality(good = true, reason = null)
@@ -53,8 +60,9 @@ class WorldStateBuilder {
             lastQuality = FrameQualityAnalyzer.analyze(lumaGrid, gridWidth, gridHeight)
         }
 
-        val capability = buildCapability(objects, trackOnlyMode)
-        val world = WorldState(
+        // Provisional world (players/zones empty until the pose/zone stages) for affordance
+        // derivation and capability scoring (§6, S3.5).
+        val provisional = WorldState(
             frameId = frameId,
             timestampMs = timestampMs,
             objects = objects,
@@ -62,44 +70,26 @@ class WorldStateBuilder {
             zones = emptyList(),
             quality = lastQuality,
             affordances = emptyList(),
-            capability = capability
+            capability = SceneCapability.EMPTY
         )
+        val affordances = affordanceEngine.derive(provisional)
+        val report = SceneCapability.report(
+            world = provisional,
+            affordances = affordances,
+            dynamics = PlayerDynamics.EMPTY,
+            forceTrackOnly = trackOnlyMode
+        )
+        _capabilityReport.value = report
+
+        val world = provisional.copy(affordances = affordances, capability = report.capability)
         _state.value = world
         return world
     }
 
-    /**
-     * Object-derived capability terms available in S3. Affordance counts and player/richness terms
-     * are placeholders (filled in S3.5 / S4). [spread] is the mean pairwise centroid distance and
-     * [SceneCapability.stability] is the fraction of objects currently stable.
-     */
-    private fun buildCapability(objects: List<TrackedObject>, trackOnlyMode: Boolean): SceneCapability {
-        val distinctColors = objects.mapNotNull { it.color }.toSet()
-        val stableFraction = if (objects.isEmpty()) 0f
-            else objects.count { it.stable }.toFloat() / objects.size
-        val spread = meanPairwiseDistance(objects)
-        return SceneCapability.EMPTY.copy(
-            distinctColors = distinctColors,
-            spread = spread,
-            stability = stableFraction,
-            trackOnlyMode = trackOnlyMode
-        )
-    }
-
-    private fun meanPairwiseDistance(objects: List<TrackedObject>): Float {
-        if (objects.size < 2) return 0f
-        var sum = 0f
-        var count = 0
-        for (i in objects.indices) {
-            for (j in i + 1 until objects.size) {
-                sum += SpatialRelations.distance(objects[i].center, objects[j].center)
-                count++
-            }
-        }
-        return if (count == 0) 0f else sum / count
-    }
-
     companion object {
         const val QUALITY_EVERY_N = 5L
+        private val EMPTY_RICHNESS =
+            RichnessBreakdown(0f, RichnessBranch.A_NO_PLAYERS, LinkedHashMap())
     }
 }
+

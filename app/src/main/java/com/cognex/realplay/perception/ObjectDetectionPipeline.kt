@@ -33,6 +33,9 @@ class ObjectDetectionPipeline(
     private val world = WorldStateBuilder()
     val worldState: StateFlow<WorldState> = world.state
 
+    /** Live capability + richness breakdown for the dev overlay (§S3.5.4). */
+    val capabilityReport = world.capabilityReport
+
     private val mediaPipe: MediaPipeObjectDetector?
     private val detector: ObjectDetectorSource
 

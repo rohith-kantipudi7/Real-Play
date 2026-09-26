@@ -35,6 +35,8 @@ import com.cognex.realplay.ui.camera.CameraPreview
 import com.cognex.realplay.ui.overlay.OverlayCanvas
 import com.cognex.realplay.ui.overlay.OverlayDetection
 import com.cognex.realplay.world.ColorTag
+import com.cognex.realplay.world.RichnessBranch
+import com.cognex.realplay.world.SceneCapabilityReport
 import com.cognex.realplay.world.WorldState
 import kotlinx.coroutines.launch
 
@@ -54,18 +56,23 @@ fun CalibrationScreen(onReady: () -> Unit, onBack: () -> Unit) {
         val useFake by AppSettings.useFakeDetector.collectAsState()
 
         var showCalibration by remember { mutableStateOf(true) }
+        var showCapability by remember { mutableStateOf(true) }
         var world by remember { mutableStateOf(WorldState.EMPTY) }
+        var capReport by remember { mutableStateOf<SceneCapabilityReport?>(null) }
 
         // (Re)build the detection pipeline whenever the fake/real toggle changes.
         DisposableEffect(controller, useFake) {
             val pipeline = ObjectDetectionPipeline(context.applicationContext, useFake)
             controller.analyzer.frameSink = { pipeline.onFrame(it) }
-            val job = scope.launch { pipeline.worldState.collect { world = it } }
+            val worldJob = scope.launch { pipeline.worldState.collect { world = it } }
+            val capJob = scope.launch { pipeline.capabilityReport.collect { capReport = it } }
             onDispose {
                 controller.analyzer.frameSink = null
-                job.cancel()
+                worldJob.cancel()
+                capJob.cancel()
                 pipeline.close()
                 world = WorldState.EMPTY
+                capReport = null
             }
         }
         DisposableEffect(controller) {
@@ -122,6 +129,22 @@ fun CalibrationScreen(onReady: () -> Unit, onBack: () -> Unit) {
                     .padding(horizontal = 12.dp, vertical = 6.dp)
             )
 
+            // Dev capability panel (§S3.5.4) — every richness term, active branch, player terms,
+            // and the three capability flags, so they can be watched changing live.
+            val report = capReport
+            if (showCapability && report != null) {
+                Text(
+                    text = capabilityReadout(report),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.White,
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(start = 12.dp, top = 96.dp)
+                        .background(Color(0xAA000000), RoundedCornerShape(8.dp))
+                        .padding(horizontal = 10.dp, vertical = 8.dp)
+                )
+            }
+
             // Bottom controls.
             Column(
                 modifier = Modifier
@@ -141,6 +164,11 @@ fun CalibrationScreen(onReady: () -> Unit, onBack: () -> Unit) {
                         onClick = { AppSettings.setUseFakeDetector(!useFake) },
                         label = { Text("Fake detector") }
                     )
+                    FilterChip(
+                        selected = showCapability,
+                        onClick = { showCapability = !showCapability },
+                        label = { Text("Capability") }
+                    )
                 }
                 Row(
                     modifier = Modifier
@@ -159,6 +187,32 @@ fun CalibrationScreen(onReady: () -> Unit, onBack: () -> Unit) {
                 }
             }
         }
+    }
+}
+
+/** Formats the live [SceneCapabilityReport] for the dev overlay (§S3.5.4). */
+private fun capabilityReadout(report: SceneCapabilityReport): String {
+    val cap = report.capability
+    val r = report.richness
+    val terms = r.terms.entries.joinToString("  ") { "${it.key} ${String.format("%.2f", it.value)}" }
+    val branch = when (r.branch) {
+        RichnessBranch.BASE -> "BASE"
+        RichnessBranch.A_NO_PLAYERS -> "A (no players)"
+        RichnessBranch.B_NO_MOVABLE -> "B (no movable)"
+    }
+    return buildString {
+        append("richness ${String.format("%.2f", cap.richness)}   branch $branch\n")
+        append(terms).append('\n')
+        append("mov ${cap.movableCount}  hand ${cap.handheldCount}  cont ${cap.containerCount}")
+        append("  land ${cap.landmarkCount}  name ${cap.nameableCount}\n")
+        append("colors ${cap.distinctColors.size}  spread ${String.format("%.2f", cap.spread)}")
+        append("  stable ${String.format("%.2f", cap.stability)}\n")
+        append("pose ${String.format("%.2f", cap.poseVariety)}")
+        append("  motion ${String.format("%.2f", cap.motionRange)}")
+        append("  cover ${String.format("%.2f", cap.frameCoverage)}\n")
+        append("semantic ${if (cap.semanticLabelsAvailable) "Y" else "N"}")
+        append("  trackOnly ${if (cap.trackOnlyMode) "Y" else "N"}")
+        append("  planar ${if (cap.planarSurfaceAvailable) "Y" else "N"}")
     }
 }
 
