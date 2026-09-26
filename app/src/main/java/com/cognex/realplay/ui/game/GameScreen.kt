@@ -6,6 +6,7 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -24,8 +26,10 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -33,11 +37,16 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.cognex.realplay.ai.Narrator
 import com.cognex.realplay.camera.CameraController
+import com.cognex.realplay.challenge.AgeBand
+import com.cognex.realplay.challenge.ChallengeType
 import com.cognex.realplay.engine.GameViewModel
+import com.cognex.realplay.engine.PartyRuntime
 import com.cognex.realplay.engine.PlayMode
 import com.cognex.realplay.engine.PlayStatus
 import com.cognex.realplay.engine.SessionConfig
+import com.cognex.realplay.engine.SessionResults
 import com.cognex.realplay.perception.ObjectDetectionPipeline
 import com.cognex.realplay.present.Hud
 import com.cognex.realplay.ui.camera.CameraPermissionGate
@@ -46,6 +55,7 @@ import com.cognex.realplay.ui.overlay.CueCanvas
 import com.cognex.realplay.ui.overlay.OverlayCanvas
 import com.cognex.realplay.ui.present.MobileTarget
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
@@ -66,6 +76,8 @@ fun GameScreen(onFinish: () -> Unit, onBack: () -> Unit) {
         val controller = remember { CameraController(context.applicationContext) }
         val vm: GameViewModel = viewModel()
         val sound = remember { SoundManager() }
+        val narrator = remember { Narrator(context.applicationContext) }
+        DisposableEffect(narrator) { onDispose { narrator.shutdown() } }
 
         val ui by vm.ui.collectAsState()
         val model by vm.renderModel.collectAsState()
@@ -110,9 +122,47 @@ fun GameScreen(onFinish: () -> Unit, onBack: () -> Unit) {
             if (ui.completedSteps in 1 until ui.stepCount) sound.step()
         }
 
-        // When the session ends, leave for the result screen.
+        // When the session ends, leave for the result screen. In PARTY mode, first fold this
+        // round's outcome into the live PartySession (§25) — presentation-layer bookkeeping only,
+        // never a new PASS path (§20 invariant 24).
         LaunchedEffect(ui.sessionOver) {
-            if (ui.sessionOver) onFinish()
+            if (ui.sessionOver) {
+                PartyRuntime.active?.let { party ->
+                    val results = SessionResults.results
+                    val gained = results.sumOf { it.score }
+                    val passed = results.any { it.passed }
+                    val type = results.lastOrNull()?.type
+                        ?.let { runCatching { ChallengeType.valueOf(it) }.getOrNull() }
+                        ?: ChallengeType.LAST_RESORT
+                    party.completeRound(type, passed, gained)
+                }
+                onFinish()
+            }
+        }
+
+        // TTS is mandatory for TODDLER (§10): every instruction and hint is spoken, fire-and-forget.
+        val toddler = SessionConfig.ageBand == AgeBand.TODDLER
+        LaunchedEffect(ui.instruction, ui.challengeIndex) {
+            if (toddler) narrator.speak(ui.instruction)
+        }
+        LaunchedEffect(ui.coachingHint) {
+            if (toddler) ui.coachingHint?.let { narrator.speak(it, interrupt = false) }
+        }
+
+        // PARTY round pacing (§25) — a visible countdown that auto-advances the turn so the room
+        // never stalls. TODDLER has no clock (RoundPacer returns null): the participant plays until
+        // they choose Finish, matching §10's "no timer, no clock pressure".
+        val partyRoundMs = PartyRuntime.active?.roundDurationMs
+        var partyRemainingMs by remember(partyRoundMs) { mutableStateOf(partyRoundMs) }
+        LaunchedEffect(partyRoundMs) {
+            val total = partyRoundMs ?: return@LaunchedEffect
+            var remaining = total
+            while (remaining > 0) {
+                delay(TICK_MS)
+                remaining = (remaining - TICK_MS).coerceAtLeast(0L)
+                partyRemainingMs = remaining
+            }
+            vm.finish()
         }
 
         // Looping animation that drives the visual-first coaching cues (§26): highlights breathe,
@@ -217,6 +267,17 @@ fun GameScreen(onFinish: () -> Unit, onBack: () -> Unit) {
                 gainedPoints = model.hud.lastGain,
                 triggerKey = if (model.hud.status == PlayStatus.PASSED) model.hud.challengeIndex else 0
             )
+
+            // TODDLER-only break suggestion after 5 continuous minutes (§10 rule 8) — a gentle
+            // banner, never a timer or a failure state.
+            if (ui.breakSuggested) {
+                BreakSuggestionBanner(onDismiss = { vm.dismissBreak() })
+            }
+
+            // PARTY round countdown badge (§25) — visible pacing, never a challenge time limit.
+            partyRemainingMs?.let { remaining ->
+                PartyRoundBadge(remainingMs = remaining, modifier = Modifier.align(Alignment.TopEnd))
+            }
         }
     }
 }
@@ -280,3 +341,51 @@ private fun statusColor(status: PlayStatus): Color = when (status) {
     PlayStatus.COACHING -> Color(0xFF7CD4FF)
     else -> Color(0xFF25E0C8)
 }
+
+/** A calm, dismissible "time for a break?" banner (Architecture §10 rule 8) — never a countdown. */
+@Composable
+private fun BreakSuggestionBanner(onDismiss: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(top = 140.dp),
+        contentAlignment = Alignment.TopCenter
+    ) {
+        Row(
+            modifier = Modifier
+                .background(Color(0xE6241A4D), RoundedCornerShape(14.dp))
+                .padding(horizontal = 18.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                text = "Time for a little break? \uD83C\uDF1F",
+                color = Color(0xFFBFF7EC),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Medium
+            )
+            OutlinedButton(onClick = onDismiss) { Text("Keep playing") }
+        }
+    }
+}
+
+/** PARTY round countdown badge (Architecture §25) — visible pacing, presentation only. */
+@Composable
+private fun PartyRoundBadge(remainingMs: Long, modifier: Modifier = Modifier) {
+    val seconds = (remainingMs / 1000L).coerceAtLeast(0L)
+    Box(
+        modifier = modifier
+            .padding(top = 24.dp, end = 16.dp)
+            .background(Color(0xB3000000), RoundedCornerShape(12.dp))
+            .padding(horizontal = 14.dp, vertical = 8.dp)
+    ) {
+        Text(
+            text = "0:${seconds.toString().padStart(2, '0')}",
+            color = Color.White,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Black
+        )
+    }
+}
+
+private const val TICK_MS = 250L

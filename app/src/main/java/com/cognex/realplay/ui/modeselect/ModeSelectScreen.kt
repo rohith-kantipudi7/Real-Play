@@ -1,23 +1,15 @@
 package com.cognex.realplay.ui.modeselect
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -25,21 +17,25 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.cognex.realplay.challenge.AgeBand
 import com.cognex.realplay.engine.PlayMode
 import com.cognex.realplay.engine.SessionConfig
+import com.cognex.realplay.engine.ToddlerSupervision
 import com.cognex.realplay.perception.AssetModelResolver
+import com.cognex.realplay.ui.common.RpButton
+import com.cognex.realplay.ui.common.RpCard
+import com.cognex.realplay.ui.common.RpChip
+import com.cognex.realplay.ui.common.RpOutlinedButton
+import com.cognex.realplay.ui.common.RpScaffold
+import com.cognex.realplay.ui.theme.RpAmber
 import com.cognex.realplay.ui.theme.RpCyan
-import com.cognex.realplay.ui.theme.RpNavyElevated
 import com.cognex.realplay.ui.theme.RpOnDark
 import com.cognex.realplay.ui.theme.RpOnDarkMuted
+import com.cognex.realplay.ui.theme.RpSpace
 
 /**
  * Mode / age / players selection (Architecture §13 S6, §10). Big visual cards a parent can use in
@@ -60,74 +56,84 @@ fun ModeSelectScreen(onContinue: () -> Unit, onBack: () -> Unit) {
     var mode by remember { mutableStateOf(PlayMode.OBJECTS) }
     var age by remember { mutableStateOf(AgeBand.MIDDLE) }
     var players by remember { mutableIntStateOf(1) }
+    var supervisionAcked by remember { mutableStateOf(ToddlerSupervision.isAcknowledged(context)) }
+    var showSupervisionDialog by remember { mutableStateOf(false) }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-            .verticalScroll(rememberScrollState())
-            .padding(24.dp)
-    ) {
-        Text("Choose your game", style = MaterialTheme.typography.headlineMedium, color = RpCyan)
-        Spacer(Modifier.height(20.dp))
-
+    RpScaffold(title = "Choose your game") {
         SectionLabel("Mode")
         Spacer(Modifier.height(8.dp))
-        BigCard(
-            title = "Objects",
-            subtitle = "Move and arrange real things",
+        RpCard(
             selected = mode == PlayMode.OBJECTS,
-            enabled = true,
-            onClick = { mode = PlayMode.OBJECTS }
-        )
+            onClick = { mode = PlayMode.OBJECTS },
+            modifier = Modifier.fillMaxWidth().height(84.dp)
+        ) { ModeCardBody("Objects", "Move and arrange real things", enabled = true) }
         Spacer(Modifier.height(10.dp))
-        BigCard(
-            title = "Body",
-            subtitle = if (poseAvailable) "Poses and movement" else "needs a person",
+        RpCard(
             selected = mode == PlayMode.BODY,
             enabled = poseAvailable,
-            onClick = { mode = PlayMode.BODY }
-        )
+            onClick = { mode = PlayMode.BODY },
+            modifier = Modifier.fillMaxWidth().height(84.dp)
+        ) { ModeCardBody("Body", if (poseAvailable) "Poses and movement" else "needs a person", enabled = poseAvailable) }
         Spacer(Modifier.height(10.dp))
-        BigCard(
-            title = "Mixed",
-            subtitle = "Objects and movement together",
+        RpCard(
             selected = mode == PlayMode.MIXED,
-            enabled = true,
-            onClick = { mode = PlayMode.MIXED }
-        )
+            onClick = { mode = PlayMode.MIXED },
+            modifier = Modifier.fillMaxWidth().height(84.dp)
+        ) { ModeCardBody("Mixed", "Objects and movement together", enabled = true) }
 
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(RpSpace.lg))
         SectionLabel("Age")
         Spacer(Modifier.height(8.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-            AgeChip("Toddler", age == AgeBand.TODDLER, Modifier.weight(1f)) { age = AgeBand.TODDLER }
-            AgeChip("Early", age == AgeBand.EARLY, Modifier.weight(1f)) { age = AgeBand.EARLY }
-            AgeChip("Middle", age == AgeBand.MIDDLE, Modifier.weight(1f)) { age = AgeBand.MIDDLE }
-            AgeChip("Older", age == AgeBand.OLDER, Modifier.weight(1f)) { age = AgeBand.OLDER }
+            RpChip("Toddler", age == AgeBand.TODDLER, Modifier.weight(1f), accent = RpAmber) {
+                age = AgeBand.TODDLER
+                if (!supervisionAcked) showSupervisionDialog = true
+            }
+            RpChip("Early", age == AgeBand.EARLY, Modifier.weight(1f), accent = RpAmber) { age = AgeBand.EARLY }
+            RpChip("Middle", age == AgeBand.MIDDLE, Modifier.weight(1f), accent = RpAmber) { age = AgeBand.MIDDLE }
+            RpChip("Older", age == AgeBand.OLDER, Modifier.weight(1f), accent = RpAmber) { age = AgeBand.OLDER }
         }
 
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(RpSpace.lg))
         SectionLabel("Players")
         Spacer(Modifier.height(8.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-            AgeChip("1 player", players == 1, Modifier.weight(1f)) { players = 1 }
-            AgeChip("2 players", players == 2, Modifier.weight(1f)) { players = 2 }
+            RpChip("1 player", players == 1, Modifier.weight(1f)) { players = 1 }
+            RpChip("2 players", players == 2, Modifier.weight(1f)) { players = 2 }
         }
 
-        Spacer(Modifier.height(32.dp))
+        Spacer(Modifier.height(RpSpace.xl))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
-            OutlinedButton(onClick = onBack, modifier = Modifier.weight(1f)) { Text("Back") }
-            Button(
+            RpOutlinedButton(text = "Back", onClick = onBack, modifier = Modifier.weight(1f))
+            RpButton(
+                text = "Continue",
                 onClick = {
                     SessionConfig.mode = mode
                     SessionConfig.ageBand = age
                     SessionConfig.playerCount = players
                     onContinue()
                 },
+                enabled = age != AgeBand.TODDLER || supervisionAcked,
                 modifier = Modifier.weight(1f)
-            ) { Text("Continue") }
+            )
         }
+    }
+
+    // Adult-supervision notice (Architecture §10 rule 9) — shown once per install, acknowledged
+    // before Toddler play begins. Blocks Continue for TODDLER until dismissed.
+    if (showSupervisionDialog) {
+        AlertDialog(
+            onDismissRequest = { showSupervisionDialog = false },
+            title = { Text("Toddler mode") },
+            text = { Text("Please stay nearby and supervise play. RealPlay uses the camera to watch the room, not the child.") },
+            confirmButton = {
+                Button(onClick = {
+                    ToddlerSupervision.acknowledge(context)
+                    supervisionAcked = true
+                    showSupervisionDialog = false
+                }) { Text("I understand") }
+            }
+        )
     }
 }
 
@@ -137,60 +143,18 @@ private fun SectionLabel(text: String) {
 }
 
 @Composable
-private fun BigCard(
-    title: String,
-    subtitle: String,
-    selected: Boolean,
-    enabled: Boolean,
-    onClick: () -> Unit
-) {
-    val border = if (selected) RpCyan else Color(0x22FFFFFF)
-    val bg = if (selected) Color(0xFF10344A) else RpNavyElevated
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(84.dp)
-            .clip(RoundedCornerShape(16.dp))
-            .background(bg)
-            .border(2.dp, border, RoundedCornerShape(16.dp))
-            .then(if (enabled) Modifier.clickable(onClick = onClick) else Modifier)
-            .padding(horizontal = 20.dp),
-        contentAlignment = Alignment.CenterStart
-    ) {
-        Column {
-            Text(
-                title,
-                style = MaterialTheme.typography.titleLarge,
-                color = if (enabled) RpOnDark else RpOnDarkMuted,
-                fontWeight = FontWeight.Bold
-            )
-            Text(
-                subtitle,
-                style = MaterialTheme.typography.bodyMedium,
-                color = if (enabled) RpOnDarkMuted else Color(0xFFF87171)
-            )
-        }
-    }
-}
-
-@Composable
-private fun AgeChip(label: String, selected: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    val border = if (selected) RpCyan else Color(0x22FFFFFF)
-    val bg = if (selected) Color(0xFF10344A) else RpNavyElevated
-    Box(
-        modifier = modifier
-            .height(52.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .background(bg)
-            .border(2.dp, border, RoundedCornerShape(12.dp))
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center
-    ) {
+private fun ModeCardBody(title: String, subtitle: String, enabled: Boolean) {
+    Column {
         Text(
-            label,
-            style = MaterialTheme.typography.labelLarge,
-            color = if (selected) RpCyan else RpOnDark,
-            fontWeight = FontWeight.SemiBold
+            title,
+            style = MaterialTheme.typography.titleLarge,
+            color = if (enabled) RpOnDark else RpOnDarkMuted,
+            fontWeight = FontWeight.Bold
+        )
+        Text(
+            subtitle,
+            style = MaterialTheme.typography.bodyMedium,
+            color = if (enabled) RpOnDarkMuted else com.cognex.realplay.ui.theme.RpError
         )
     }
 }

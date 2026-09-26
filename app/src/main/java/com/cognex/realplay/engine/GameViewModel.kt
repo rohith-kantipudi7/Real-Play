@@ -52,12 +52,22 @@ import kotlinx.coroutines.launch
  * frame only COACHES — it consumes no retry and never changes difficulty (§8, §20 invariant 2).
  */
 class GameViewModel(
-    private val ageBand: AgeBand = SessionConfig.ageBand,
-    private val selectionMode: SelectionMode = SelectionMode.RECOMMENDED,
+    /** Null (the default) reads [SessionConfig.ageBand] live every frame, so a parent can switch
+     *  bands mid-session without restarting the game (§13 S10). Non-null pins it — used by tests. */
+    private val ageBandOverride: AgeBand? = null,
+    /** Null (the default) reads the live PARTY session's policy, if any, else RECOMMENDED (§25).
+     *  Non-null pins it — used by tests. */
+    private val selectionModeOverride: SelectionMode? = null,
     private val verifierRegistry: VerifierRegistry = VerifierRegistry.default(),
     challengeRegistry: ChallengeRegistry? = null,
     languageModel: LanguageModel? = null
 ) : ViewModel() {
+
+    private val ageBand: AgeBand get() = ageBandOverride ?: SessionConfig.ageBand
+
+    /** RECOMMENDED for SOLO; a PARTY session supplies OPEN-style controlled variety (§25). */
+    private val selectionMode: SelectionMode
+        get() = selectionModeOverride ?: PartyRuntime.active?.selectionMode ?: SelectionMode.RECOMMENDED
 
     private val registry: ChallengeRegistry = challengeRegistry
         ?: ChallengeRegistry.default()
@@ -85,6 +95,10 @@ class GameViewModel(
     private var challengeIndex = 0
     private var bestStreak = 0
     private var sessionOver = false
+
+    /** Session-elapsed break suggestion (§10 rule 8 — TODDLER only, once per session). */
+    private val sessionStartMs = System.currentTimeMillis()
+    private var breakDismissed = false
 
     /** The latest difficulty "why" string (§8, §13 S9), surfaced to the dev overlay via GameUiState. */
     private var difficultyExplanation = ""
@@ -162,10 +176,24 @@ class GameViewModel(
         _ui.value = _ui.value.copy(sessionOver = true)
     }
 
+    /** Dismisses the break suggestion for the rest of this session (§10 rule 8). */
+    fun dismissBreak() {
+        breakDismissed = true
+        _ui.value = _ui.value.copy(breakSuggested = false)
+    }
+
+    private fun maybeSuggestBreak() {
+        if (breakDismissed || ageBand != AgeBand.TODDLER || _ui.value.breakSuggested) return
+        if (System.currentTimeMillis() - sessionStartMs >= BREAK_SUGGEST_MS) {
+            _ui.value = _ui.value.copy(breakSuggested = true)
+        }
+    }
+
     // ── core loop (off the analyzer thread) ──────────────────────────────────
 
     private fun process(world: WorldState, cap: SceneCapability) {
         if (sessionOver) return
+        maybeSuggestBreak()
 
         if (mission == null) {
             startNewChallenge(world, cap)
@@ -234,9 +262,12 @@ class GameViewModel(
         return GenerationContext(
             ageBand = ageBand,
             effectiveTier = resolution.effectiveTier,
-            knobs = resolution.knobs,
+            // Toddler-only knob overrides (§10) — no-op for every other band.
+            knobs = com.cognex.realplay.challenge.ToddlerPolicy.apply(resolution.knobs, ageBand),
             trackOnlyMode = cap.trackOnlyMode,
-            recentTypes = session.recentTypes,
+            // A PARTY session's cross-round history is prepended so novelty scoring avoids repeats
+            // across turns too, not just within one player's own session (§25).
+            recentTypes = (PartyRuntime.active?.recentTypes ?: emptyList()) + session.recentTypes,
             seed = seedCounter++
         )
     }
@@ -454,7 +485,15 @@ class GameViewModel(
 
     private fun publishPlaying(spec: ChallengeSpec, tick: MissionRunner.Tick, elapsedMs: Long) {
         val coaching = (tick.outcome as? VerificationOutcome.Unsure)?.coachingHint ?: tick.coachingHint
-        val status = if (tick.outcome is VerificationOutcome.Unsure) PlayStatus.COACHING else PlayStatus.PLAYING
+        // Timed hint escalation (§10 rule 6) — a verbal nudge, then a more specific one, only when
+        // the verifier itself has nothing more relevant to say and only for TODDLER.
+        val escalated = if (coaching == null && ageBand == AgeBand.TODDLER) {
+            HintEscalation.hintFor(spec.hints, HintEscalation.levelFor(elapsedMs))
+        } else null
+        val effectiveHint = coaching ?: escalated
+        val status = if (tick.outcome is VerificationOutcome.Unsure || escalated != null) {
+            PlayStatus.COACHING
+        } else PlayStatus.PLAYING
         val timeRemaining = spec.timeLimitMs?.let { (it - elapsedMs).coerceAtLeast(0L) }
         val timeFraction = spec.timeLimitMs?.let { (timeRemaining!!.toFloat() / it).coerceIn(0f, 1f) }
         val evNow = when (val o = tick.outcome) {
@@ -473,7 +512,7 @@ class GameViewModel(
             streak = session.streak,
             challengeIndex = challengeIndex,
             perfect = false,
-            coachingHint = coaching,
+            coachingHint = effectiveHint,
             evidence = evNow,
             timeRemainingMs = timeRemaining,
             timeFraction = timeFraction,
@@ -511,5 +550,6 @@ class GameViewModel(
 
     private companion object {
         const val MAX_RETRIES = 2
+        const val BREAK_SUGGEST_MS = 5 * 60_000L
     }
 }

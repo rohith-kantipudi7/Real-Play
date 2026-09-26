@@ -7,10 +7,14 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.cognex.realplay.device.DeviceCapabilities
 import com.cognex.realplay.device.PerformanceProfile
+import com.cognex.realplay.engine.PartyRuntime
 import com.cognex.realplay.ui.calibration.CalibrationScreen
 import com.cognex.realplay.ui.game.GameScreen
 import com.cognex.realplay.ui.home.HomeScreen
 import com.cognex.realplay.ui.modeselect.ModeSelectScreen
+import com.cognex.realplay.ui.party.PartyHandoffScreen
+import com.cognex.realplay.ui.party.PartyPodiumScreen
+import com.cognex.realplay.ui.party.PartyRosterScreen
 import com.cognex.realplay.ui.result.ResultScreen
 import com.cognex.realplay.ui.settings.SettingsScreen
 
@@ -27,7 +31,11 @@ fun RealPlayNavHost(
     NavHost(navController = navController, startDestination = Routes.HOME) {
         composable(Routes.HOME) {
             HomeScreen(
-                onPlay = { navController.navigate(Routes.MODE_SELECT) },
+                onPlay = {
+                    PartyRuntime.clear()
+                    navController.navigate(Routes.MODE_SELECT)
+                },
+                onParty = { navController.navigate(Routes.PARTY_ROSTER) },
                 onSettings = { navController.navigate(Routes.SETTINGS) }
             )
         }
@@ -45,7 +53,18 @@ fun RealPlayNavHost(
         }
         composable(Routes.GAME) {
             GameScreen(
-                onFinish = { navController.navigate(Routes.RESULT) },
+                onFinish = {
+                    val party = PartyRuntime.active
+                    when {
+                        party == null -> navController.navigate(Routes.RESULT)
+                        party.sessionOver -> navController.navigate(Routes.PARTY_PODIUM) {
+                            popUpTo(Routes.PARTY_ROSTER)
+                        }
+                        else -> navController.navigate(Routes.PARTY_HANDOFF) {
+                            popUpTo(Routes.PARTY_HANDOFF) { inclusive = true }
+                        }
+                    }
+                },
                 onBack = { navController.popBackStack() }
             )
         }
@@ -60,6 +79,32 @@ fun RealPlayNavHost(
                 deviceCapabilities = deviceCapabilities,
                 performanceProfile = performanceProfile,
                 onBack = { navController.popBackStack() }
+            )
+        }
+        composable(Routes.PARTY_ROSTER) {
+            PartyRosterScreen(
+                onStart = { navController.navigate(Routes.PARTY_HANDOFF) },
+                onBack = { navController.popBackStack() }
+            )
+        }
+        // PARTY skips Calibration between turns — fast, energetic pacing (§25) over a per-turn
+        // capability re-read; each round plays against whatever the camera already sees.
+        composable(Routes.PARTY_HANDOFF) {
+            PartyHandoffScreen(
+                onReady = { navController.navigate(Routes.GAME) },
+                onBack = { navController.popBackStack() }
+            )
+        }
+        composable(Routes.PARTY_PODIUM) {
+            PartyPodiumScreen(
+                onPlayAgain = {
+                    PartyRuntime.clear()
+                    navController.navigate(Routes.PARTY_ROSTER) { popUpTo(Routes.HOME) }
+                },
+                onHome = {
+                    PartyRuntime.clear()
+                    navController.popBackStack(Routes.HOME, inclusive = false)
+                }
             )
         }
     }

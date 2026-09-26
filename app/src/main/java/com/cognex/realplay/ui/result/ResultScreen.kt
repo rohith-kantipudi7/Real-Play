@@ -3,20 +3,14 @@ package com.cognex.realplay.ui.result
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -27,11 +21,16 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.cognex.realplay.engine.ChallengeResult
 import com.cognex.realplay.engine.SessionResults
+import com.cognex.realplay.ui.common.RpButton
+import com.cognex.realplay.ui.common.RpOutlinedButton
+import com.cognex.realplay.ui.common.RpScaffold
+import com.cognex.realplay.ui.common.RpStatCard
 import com.cognex.realplay.ui.theme.RpAmber
 import com.cognex.realplay.ui.theme.RpCyan
 import com.cognex.realplay.ui.theme.RpNavyElevated
 import com.cognex.realplay.ui.theme.RpOnDark
 import com.cognex.realplay.ui.theme.RpOnDarkMuted
+import com.cognex.realplay.ui.theme.RpSpace
 import com.cognex.realplay.verify.Evidence
 import com.cognex.realplay.verify.MeasurementDomain
 import kotlin.math.roundToInt
@@ -48,26 +47,17 @@ fun ResultScreen(onPlayAgain: () -> Unit, onHome: () -> Unit) {
     val best = remember { SessionResults.bestStreak }
     val passed = remember { results.count { it.passed } }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-            .verticalScroll(rememberScrollState())
-            .padding(24.dp)
-    ) {
-        Text("Great playing!", style = MaterialTheme.typography.headlineMedium, color = RpCyan)
-        Spacer(Modifier.height(16.dp))
-
+    RpScaffold(title = "Great playing!") {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            StatCard("Score", "$total", RpCyan, Modifier.weight(1f))
-            StatCard("Best streak", "$best", RpAmber, Modifier.weight(1f))
-            StatCard("Cleared", "$passed/${results.size}", Color(0xFF57E39B), Modifier.weight(1f))
+            RpStatCard("Score", "$total", RpCyan, Modifier.weight(1f))
+            RpStatCard("Best streak", "$best", RpAmber, Modifier.weight(1f))
+            RpStatCard("Cleared", "$passed/${results.size}", Color(0xFF57E39B), Modifier.weight(1f))
         }
 
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(RpSpace.lg))
         Text("Challenges", style = MaterialTheme.typography.titleMedium, color = RpOnDarkMuted, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(8.dp))
 
@@ -81,24 +71,11 @@ fun ResultScreen(onPlayAgain: () -> Unit, onHome: () -> Unit) {
             results.forEach { ResultRow(it) }
         }
 
-        Spacer(Modifier.height(28.dp))
+        Spacer(Modifier.height(RpSpace.lg + RpSpace.xs))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
-            OutlinedButton(onClick = onHome, modifier = Modifier.weight(1f)) { Text("Home") }
-            Button(onClick = onPlayAgain, modifier = Modifier.weight(1f)) { Text("Play Again") }
+            RpOutlinedButton(text = "Home", onClick = onHome, modifier = Modifier.weight(1f))
+            RpButton(text = "Play Again", onClick = onPlayAgain, modifier = Modifier.weight(1f))
         }
-    }
-}
-
-@Composable
-private fun StatCard(label: String, value: String, accent: Color, modifier: Modifier = Modifier) {
-    Column(
-        modifier = modifier
-            .background(RpNavyElevated, RoundedCornerShape(16.dp))
-            .padding(vertical = 16.dp, horizontal = 12.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text(value, style = MaterialTheme.typography.headlineSmall, color = accent, fontWeight = FontWeight.Black)
-        Text(label, style = MaterialTheme.typography.labelMedium, color = RpOnDarkMuted)
     }
 }
 

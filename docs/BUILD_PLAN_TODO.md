@@ -10,7 +10,8 @@ Cross-references: Architecture §13 (stages/gates), §7 (generators), §25–§2
 
 ## Status at a glance
 
-> **Current position (2026-09-27):** S0–S9 complete + DQ + v3.6-A + v3.6-B. **NEXT: S10 (Toddler + TTS).**
+> **Current position (2026-09-27):** S0–S10 complete + DQ + v3.6-A + v3.6-B + v3.6-C + UX design
+> system pass. **NEXT: finish UX screen-by-screen polish (Calibration/Game deferred), then S12.**
 > Full engineering context for a fresh machine/agent: **docs/CONTEXT_HANDOFF.md**.
 
 | Stage | Title | Status |
@@ -27,19 +28,19 @@ Cross-references: Architecture §13 (stages/gates), §7 (generators), §25–§2
 | S7 | Zones + G2/G3 + SceneCapabilityCard | ✅ |
 | S8 | Pose + identity + G4/G5 | ✅ (P1; on-device in-game gate pending) |
 | S9 | Difficulty director + G6/G7 + structural axis | ✅ (on-device in-game gate pending) |
-| **S10** | **Toddler + TTS (visual-first, §26)** | ⬜ **NEXT** |
+| S10 | Toddler + TTS (visual-first, §26) | ✅ (device TTS/dialog manual gate pending) |
 | S11 | SLM / on-device LLM composer | ✅ (needs Tier-B model on device to activate) |
 | S12 | Hardening + freeze | ⬜ |
 | S13 | P2 bonuses | 🧊 |
 | v3.6-A | Presentation seam (present/, RenderModel, MobileTarget) | ✅ |
 | v3.6-B | Visual-first coaching (coach/, VisualCue) | ✅ |
-| **v3.6-C** | **Party / Event mode (party/)** | ⬜ |
+| v3.6-C | Party / Event mode (party/) | ✅ (device manual gate pending) |
 | **v3.6-D** | **VrTarget (spatial renderer)** | 🧊 |
-| **UX** | **Full UI/UX overhaul (design system + all screens)** | ⬜ |
+| **UX** | **Full UI/UX overhaul (design system + all screens)** | 🟡 design system + Home/ModeSelect/Settings/Result/Party done |
 
-**Remaining work, in suggested order:** S10 → v3.6-C → UX → S12 → (S13/v3.6-D deferred). S11 already
-shipped (activates only with a side-loaded Tier-B model). DQ has a model-side props fine-tune + a
-live-device fps/accuracy gate still open (can be done opportunistically).
+**Remaining work, in suggested order:** UX (Calibration/Game re-skin) → S12 → (S13/v3.6-D deferred).
+S11 already shipped (activates only with a side-loaded Tier-B model). DQ has a model-side props
+fine-tune + a live-device fps/accuracy gate still open (can be done opportunistically).
 
 ---
 
@@ -178,18 +179,38 @@ last two object games.
 - **GATE (§13 S9):** unit + build + install + launch passed. Remaining: on-device visual check that
       the triangle overlay turns green only on a real triangle (manual — Compose not uiautomator-drivable).
 
-### S10 · Toddler mode + TTS + visual-first ⬜  *(ties into v3.6-B §26)*
+### S10 · Toddler mode + TTS + visual-first ✅ DONE  *(device manual gate pending)*
 **Goal:** the youngest-child path — no timers, no failure, spoken + **visual-first** coaching.
 
-- [ ] `ai/Narrator.kt` (or `engine/Narrator`) — Android `TextToSpeech`, offline en-IN/en-US,
-      fire-and-forget; speaks every instruction/hint.
-- [ ] Toddler engine enforcement (§10): strip timers, Fail renders as Unsure, max 2 actors,
-      holdMs×1.7 capped 2000 ms, tolerances×2, hints 8/16/24 s, STRICT SafetyFilter (UNKNOWN +
-      sub-1.5% excluded), break at 5 min, supervision notice once per install, stepBudget=1.
-- [ ] Wire the **VisualCue track** (v3.6-B) as the PRIMARY carrier for TODDLER/EARLY.
-- [ ] **Tests:** TTS in airplane mode, no timer/clock/red-X in toddler, wrong action = encouragement,
-      hint escalation, effective holdMs ≤2000, stepBudget=1, supervision notice once.
-- **GATE (§13 S10):** all of the above on device.
+- [x] `ai/Narrator.kt` — Android `TextToSpeech`, prefers en-IN → en-US → default, offline,
+      fire-and-forget; speaks every instruction/hint for TODDLER (`GameScreen` observes `ui.instruction`
+      / `ui.coachingHint` and calls it — presentation-only, never touches the engine).
+- [x] `challenge/ToddlerPolicy.kt` — holdMs ×1.7 capped at 2000 ms, distance/pose tolerances ×2,
+      `timeLimitMs` forced null; applied on top of the generic scene-scaled knobs in
+      `GameViewModel.buildContext`. No-op for every other band.
+- [x] `engine/HintEscalation.kt` — verbal hint at 8 s, a more specific one at 16 s, then the
+      always-on §26 visual cue carries it from 24 s; wired into `GameViewModel.publishPlaying`
+      (TODDLER only, only when the verifier itself has nothing more relevant to say).
+- [x] `engine/ToddlerSupervision.kt` — SharedPreferences-backed, shown once per install; the
+      `ModeSelectScreen` supervision dialog blocks Continue for TODDLER until acknowledged.
+- [x] Break suggestion after 5 continuous minutes (TODDLER only) — `GameViewModel.maybeSuggestBreak`
+      + `dismissBreak()`, rendered as a calm dismissible `BreakSuggestionBanner` in `GameScreen`
+      (never a timer or a failure state).
+- [x] `GameViewModel.ageBand` now reads `SessionConfig.ageBand` LIVE every frame (an optional
+      constructor override remains for tests) — a parent can switch bands mid-session without
+      restarting the game.
+- [x] Confirmed structurally already true and covered by tests: `stepBudget` is always 1 in
+      TODDLER/EARLY (`Difficulty.ageStepCap`), `Fail` already renders identically to `Unsure`
+      (the `TemporalGate` never distinguishes them — no engine change needed), max-2-actor
+      instructions hold for every TODDLER-eligible generator (G0, G3).
+- [x] **Tests (all green):** `ToddlerPolicyTest` (hold/tolerance scaling, 2000 ms cap, timeLimitMs
+      stripped), `HintEscalationTest` (8/16/24 s thresholds + fallback), `ToddlerConstraintsTest`
+      (registry-level: stepBudget=1, actors≤2, timeLimitMs=null across object-only/human-only/empty
+      scenes). 294 unit tests green (was 286).
+- **GATE (§13 S10):** unit + build + install + launch passed. Remaining, device-only and manual
+      (Compose not uiautomator-drivable on the vivo): TTS actually audible in airplane mode, the
+      supervision dialog appears once and persists across restarts, hint escalation timing feels
+      right at the table, break banner appears after 5 real minutes.
 
 ### S12 · Hardening + freeze ⬜
 - [ ] OPEN mode on ≥6 unfamiliar surfaces; registry never null across all 6.
@@ -232,42 +253,56 @@ last two object games.
 - [x] **Tests:** cue targeting + no spec/verdict change — green.
 - **Invariant:** 23 upheld.
 
-### v3.6-C · Party / Event mode ⬜  *(multiplayer — functions & birthday parties)*
+### v3.6-C · Party / Event mode ✅ DONE  *(device manual gate pending)*
 **Goal:** turn the room into players. Fast, energetic, fair multi-player rounds over the SAME
 verifiable skills — no new way to win. This is the crowd-engagement centrepiece.
 
-**Core orchestration (`party/`):**
-- [ ] `party/SessionMode.kt` — SOLO | PARTY (SOLO is current flow).
-- [ ] `party/Roster.kt` — **2–8 players or 2–4 teams**; add/name/colour each entrant; reuse §5
-      identity (colour-band / hot-seat), no new tracking. Persist for the session.
-- [ ] `party/RoundPacer.kt` — short capped rounds (20–40 s) + visible countdown; auto-advance so
-      the room never stalls; toddler-safe pacing (no elimination / clock pressure when TODDLER).
-- [ ] `party/PartyOrchestrator.kt` — picks the next challenge with OPEN-style controlled variety
-      (consecutive players get DIFFERENT games from the same table); enforces **fairness**
-      (comparable feasibility across a rotation); composes only registered skills via the same
-      composer/validator/SafetyFilter.
-- [ ] `party/Leaderboard.kt` — cumulative score/streaks; **team aggregation**; celebratory reveal.
-- [ ] `party/TurnController.kt` — whose turn, rotation order, "pass the phone" / tripod hot-seat
-      handoff prompts between turns.
+**Core orchestration (`party/`, pure JVM):**
+- [x] `party/SessionMode.kt` — `SessionMode` (SOLO/PARTY) + `PartyFormat` (RELAY, HEAD_TO_HEAD,
+      TEAM_VS_TEAM, CO_OP_STREAK).
+- [x] `party/Roster.kt` — `Entrant` + `Roster` (2–8 players OR 2–4 teams; fails closed on bad size
+      or duplicate id). Reuses §5 colour-band identity via `ColorTag`, no new tracking.
+- [x] `party/RoundPacer.kt` — 20–40 s round budget; TODDLER returns null (no clock, no elimination).
+- [x] `party/TurnController.kt` — rotation order, HEAD_TO_HEAD opponent naming, lap/round number.
+- [x] `party/Leaderboard.kt` — cumulative score/streak; a team IS one entrant so aggregation is
+      free; `CO_OP_STREAK` pools into one shared bucket (`Leaderboard.SHARED_ID`).
+- [x] `party/PartyOrchestrator.kt` — every format selects `SelectionMode.OPEN` for controlled
+      variety (§16) over the SAME registered skills; `isFeasibilityComparable` is a fairness
+      monitoring signal; history trimmed to a 3-round window (mirrors `GameSession`).
+- [x] `party/PartySession.kt` — glue: composes the above into one live rotation; ends after every
+      entrant has played one lap.
+- [x] `engine/PartyRuntime.kt` — process-lifetime holder (mirrors `SessionConfig`); `GameViewModel`
+      reads `ageBand`/`selectionMode` LIVE from it (same pattern as the S10 mid-session age read),
+      so entering/leaving PARTY needs no ViewModel factory. Party history feeds into
+      `GenerationContext.recentTypes` alongside the existing per-session novelty memory.
+- [x] `GameScreen` reads `PartyRuntime.active` for a visible round countdown (`PartyRoundBadge`,
+      auto-calls `vm.finish()` at zero; TODDLER has none) and, on session end, folds
+      `SessionResults` into `PartySession.completeRound(...)` — zero engine/verifier changes.
 
-**Formats (all built from shipped skills):**
-- [ ] Relay / hot-seat — each entrant one quick round; highest score/streak wins.
-- [ ] Head-to-head — two players, same challenge, first verified PASS wins.
-- [ ] Team vs team — alternating members, aggregate score.
-- [ ] Co-op streak — the whole room keeps one shared streak alive.
+**Formats (all built from shipped skills, one PartySession model serves all four):**
+- [x] Relay/hot-seat, head-to-head (opponent named, still sequential — honest single-camera
+      simplification), team vs team (a team is one entrant), co-op streak (shared bucket).
 
-**Party UI (`ui/party/`, coordinate with the UX overhaul):**
-- [ ] Roster setup screen (add players/teams, pick colours/avatars).
-- [ ] "Whose turn" handoff screen with big name + colour + countdown.
-- [ ] Live leaderboard (animated rank changes, streak flames, team bars).
-- [ ] Between-round celebration + "next up" energy (reuse SuccessBurst/sound, bigger).
-- [ ] Final podium / winner reveal.
-- [ ] PARTY entry point on Home + mode config in ModeSelect (player/team count, format).
+**Party UI (`ui/party/`):**
+- [x] `PartyRosterScreen.kt` — format chips, add/remove 2–8 players or 2–4 teams, age band
+      (reuses the §10 supervision dialog for TODDLER), Start.
+- [x] `PartyHandoffScreen.kt` — whose-turn (name + colour swatch, opponent for HEAD_TO_HEAD),
+      live leaderboard, round number + format, Ready.
+- [x] `PartyPodiumScreen.kt` — final ranked leaderboard with medal styling, Play Again / Home.
+- [x] Home screen PARTY entry point; PARTY skips per-turn Calibration by design (fast pacing over a
+      per-turn capability re-read — documented in the nav host, not a missing feature).
+- [x] Nav routes `PARTY_ROSTER` / `PARTY_HANDOFF` / `PARTY_PODIUM`; `GAME`'s `onFinish` branches to
+      SOLO's Result screen or PARTY's Handoff/Podium based on `PartyRuntime.active`.
 
-- [ ] **Tests:** orchestrator variety + fairness across a rotation, turn rotation correct,
-      leaderboard/team aggregation, deliberate failure still fails, TODDLER pacing has no
-      elimination, no new RuleId / no new PASS path.
-- **Invariant:** 24 (same composer/validator/verifier; no new way to win).
+- [x] **Tests (all green):** `RosterTest` (bounds + duplicate ids), `RoundPacerTest` (toddler null,
+      bounds), `TurnControllerTest` (rotation wraps, opponent, round numbering),
+      `LeaderboardTest` (accumulation, streak reset on fail, stable ranking, team + co-op
+      aggregation), `PartyOrchestratorTest` (OPEN for every format, history trim, fairness signal),
+      `PartySessionTest` (full-lap lifecycle, per-entrant vs shared scoring, live selectionMode).
+      322 unit tests green (was 294). No new `RuleId`, no new verifier, no new PASS path.
+- **GATE (§13 v3.6-C):** unit + build + install + launch passed. Remaining, device-only and manual:
+      a real multi-player rotation on the table, the round countdown feels right, TEAM_VS_TEAM member
+      alternation reads clearly, TODDLER party pacing has no elimination/clock pressure.
 
 ### v3.6-D · VrTarget 🧊  *(roadmap — designed, not built)*
 - [ ] `present/VrTarget.kt` — stereoscopic/spatial renderer consuming the identical RenderModel
@@ -277,7 +312,7 @@ verifiable skills — no new way to win. This is the crowd-engagement centrepiec
 
 ---
 
-## UX · Full UI/UX overhaul ⬜  *(a lot changed — unify + polish every screen)*
+## UX · Full UI/UX overhaul 🟡  *(design system + first re-skin wave done 2026-09-27)*
 
 **Goal:** the app grew across S5–S6 + AI + v3.6; the UI is now inconsistent. Rebuild a single
 design system and re-skin every screen so it looks intentional, modern and playful, and so the new
@@ -285,33 +320,40 @@ surfaces (AI composer, PARTY multiplayer, visual-first coaching) feel first-clas
 ~30% of the grade (§13 S13, §19).** Presentation only — never touches perception/verifier.
 
 **Design system (`ui/theme/` + `ui/common/`):**
-- [ ] Finalise the palette + semantic tokens (surface/primary/secondary/success/error/streak) in
-      one place; kill remaining hardcoded hex in chrome. Keep ColorTag semantic maps accurate.
-- [ ] Typography scale (display/title/body/label) + spacing/radius/elevation tokens.
-- [ ] Reusable components: `RpButton`, `RpCard`, `RpChip`, `RpStatCard`, `RpBadge`, `RpProgressRing`,
-      `RpToast`, `RpScaffold` (consistent top bar/background), motion helpers (enter/celebrate).
-- [ ] Icon set (consistent), gradient/blur background treatment, dark-first.
+- [x] `ui/theme/Dimens.kt` — `RpSpace` / `RpRadius` spacing + corner-radius scale.
+- [x] Palette v2 (`ui/theme/Color.kt`) — deeper near-black base (`RpNavyDeep`/`RpNavy`), a
+      dialled-back teal primary and warm amber secondary instead of neon candy colours; kept every
+      existing colour NAME stable so nothing else needed touching.
+- [x] `ui/common/RpComponents.kt` — `RpScaffold` (gradient background + title + scroll), `RpButton` /
+      `RpOutlinedButton` / `RpTextButton` (moderate rounded-rect shape + elevation, not a full pill),
+      `RpCard` (selectable or plain container, shadow + border), `RpChip`, `RpStatCard`, `RpBadge`,
+      `RpToast`, plus `RpHeroBackground` (radial glow) and `RpLogoMark` (a drawn aperture/lens mark —
+      no image asset needed) for the Home hero.
+- [ ] Icon set beyond the drawn logo mark; full motion-helper library. *(deferred)*
 
 **Screen-by-screen re-skin:**
-- [ ] **Home** — hero, clear SOLO vs PARTY entry, Settings; energetic but calm.
-- [ ] **ModeSelect** — mode cards (Objects/Body/Mixed), age chips, player/team + format config
-      (feeds PARTY); better selection states.
-- [ ] **Calibration** — friendlier "getting ready", the SceneCapabilityCard (S7) as a polished
-      reveal, clean dev overlay behind a flag.
-- [ ] **Game** — refined HUD, ProgressRing, StepTracker ("Step 1 of 2"), EvidencePanel wording,
-      CoachingToast, BriefingOverlay, SuccessBurst; make room for VisualCue rendering (v3.6-B).
-- [ ] **Result** — scorecard, per-challenge rows, streak highlights, Play Again / Home.
-- [ ] **Settings** — grouped sections (AI composer, sound, developer); clear on/off + explainers.
-- [ ] **Party screens** (with v3.6-C) — roster, turn handoff, live leaderboard, podium.
-- [ ] **Toddler skin** (with S10) — bigger targets, visuals-first, no scary failure states.
+- [x] **Home** — hero gradient + aperture logo mark, rebalanced vertical rhythm (no more dead
+      space), PLAY / PARTY / Settings on the shared components, footer credit line.
+- [x] **ModeSelect** — mode cards and age/player chips now `RpCard`/`RpChip`; supervision dialog
+      unchanged.
+- [x] **Settings** — grouped into `RpCard` sections (Device / Sound / AI composer / Developer) with
+      the AI explainer text kept.
+- [x] **Result** — `RpScaffold` + `RpStatCard` trio + shared buttons; per-challenge rows unchanged
+      (already bespoke and information-dense).
+- [x] **Party screens** — Roster/Handoff/Podium re-skinned on the same components.
+- [ ] **Calibration** — not yet touched this pass (live camera screen, higher regression risk).
+- [ ] **Game** — not yet touched this pass (HUD/ProgressRing/StepTracker/EvidencePanel/CoachingToast
+      untouched — live gameplay screen, deliberately deferred to reduce risk to a working demo).
+- [ ] **Toddler skin** — no dedicated visual variant yet beyond existing supervision dialog + TTS.
 
 **Polish:**
-- [ ] Consistent transitions between screens; loading/empty/error states.
-- [ ] Haptics + sound cues unified; respect the mute setting.
-- [ ] Readable at arm's length; no jank; zero allocation in DrawScope (§S6 gate holds).
-- [ ] Accessibility pass (contrast, touch target sizes, TalkBack labels on key controls).
-- **GATE:** every screen uses the design system (no stray hex), looks consistent, readable at
-      arm's length, success feedback <200 ms, no jank, PARTY + AI + coaching surfaces feel native.
+- [x] Verified on-device: Home renders with real depth (gradient + shadows), no more flat dead
+      space; `assembleDebug` + all 322 unit tests green after the visual pass.
+- [ ] Consistent transitions between screens; loading/empty/error states. *(deferred)*
+- [ ] Haptics unified. *(deferred — sound cues already respect the mute setting)*
+- [ ] Accessibility pass (contrast, touch target sizes, TalkBack labels). *(deferred)*
+- **GATE:** partially met — the five re-skinned screens use the design system consistently and read
+      as one product; Calibration/Game/Toddler-specific visuals remain for a follow-up pass.
 
 ---
 

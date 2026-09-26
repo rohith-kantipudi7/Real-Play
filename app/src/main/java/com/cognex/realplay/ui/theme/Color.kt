@@ -3,27 +3,29 @@ package com.cognex.realplay.ui.theme
 import androidx.compose.ui.graphics.Color
 
 // ─────────────────────────────────────────────────────────────────────────────
-// RealPlay palette — "modern playful": a deep indigo canvas with vibrant, high-
-// contrast, kid-friendly accents. Dark base keeps the UI legible over the live
-// camera feed; saturated primaries pop for young players (§S6, §19 quality bar).
-// Names are stable across the app — only the values changed from the old navy set.
+// RealPlay palette v2 — deeper, richer canvas with a single confident accent
+// pair instead of many competing saturated colours (§13 UX). Dark base keeps
+// the UI legible over the live camera feed. Names are stable across the app —
+// only the values changed.
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Base surfaces — deep indigo/violet, not flat black, so cards feel warm.
-val RpNavy = Color(0xFF161033)          // background / base surface
-val RpNavyElevated = Color(0xFF241A4D)  // elevated cards, chips, panels
+// Base surfaces — near-black indigo, not flat navy, for real contrast depth.
+val RpNavyDeep = Color(0xFF07061A)      // gradient floor / darkest corners
+val RpNavy = Color(0xFF0E0C24)          // background / base surface
+val RpNavyElevated = Color(0xFF1B1838)  // elevated cards, chips, panels
+val RpNavyElevated2 = Color(0xFF241F49) // a second, lighter elevation step
 
-// Primary — vibrant turquoise. Fresh, energetic, high contrast on the dark base.
-val RpCyan = Color(0xFF25E0C8)
-val RpCyanDim = Color(0xFF12897E)
+// Primary — a confident teal, dialled back from neon so it reads as premium.
+val RpCyan = Color(0xFF2DD4BF)
+val RpCyanDim = Color(0xFF0F766E)
 
-// Secondary — sunny tangerine. Warm, celebratory, pairs with the turquoise.
-val RpAmber = Color(0xFFFFB13A)
-val RpAmberDim = Color(0xFFB86E12)
+// Secondary — warm amber, used sparingly as a genuine accent, not a second primary.
+val RpAmber = Color(0xFFF5A524)
+val RpAmberDim = Color(0xFFB5790E)
 
 // Foreground — near-white with a faint violet tint for a softer, playful feel.
 val RpOnDark = Color(0xFFF3EEFF)
-val RpOnDarkMuted = Color(0xFFB4A7DE)
+val RpOnDarkMuted = Color(0xFFA79FC7)
 
 // Feedback — clear, friendly, never harsh.
 val RpError = Color(0xFFFF5C7A)         // coral-red: readable but not scary
