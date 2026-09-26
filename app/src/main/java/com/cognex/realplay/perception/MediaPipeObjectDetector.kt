@@ -76,8 +76,14 @@ class MediaPipeObjectDetector private constructor(
                     ColorTagger.sampleCentral(it, box.left, box.top, box.right, box.bottom)
                 }.getOrNull()
             }
+            // Confidence-gate the NAME: below the threshold we keep tracking the object but blank the
+            // label so downstream naming falls back to highlight colour (§3.5, §7.1). Geometry is
+            // untouched. Above it, present a short child-friendly name (§S2).
+            val friendly =
+                if (LabelVocabulary.isConfidentName(category.score())) LabelVocabulary.friendly(category.categoryName())
+                else ""
             RawDetection(
-                label = category.categoryName(),
+                label = friendly,
                 confidence = category.score(),
                 box = box,
                 color = color

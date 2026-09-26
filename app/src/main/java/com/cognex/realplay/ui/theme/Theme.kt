@@ -14,12 +14,15 @@ private val RealPlayColorScheme = darkColorScheme(
     onSecondary = RpNavy,
     secondaryContainer = RpAmberDim,
     onSecondaryContainer = RpOnDark,
+    tertiary = RpViolet,
+    onTertiary = RpOnDark,
     background = RpNavy,
     onBackground = RpOnDark,
     surface = RpNavy,
     onSurface = RpOnDark,
     surfaceVariant = RpNavyElevated,
     onSurfaceVariant = RpOnDarkMuted,
+    outline = RpOnDarkMuted,
     error = RpError,
     onError = RpNavy
 )

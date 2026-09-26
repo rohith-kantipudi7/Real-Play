@@ -231,10 +231,10 @@ private fun statusWord(status: PlayStatus): String = when (status) {
 }
 
 private fun statusColor(status: PlayStatus): Color = when (status) {
-    PlayStatus.PASSED -> Color(0xFF4ADE80)
-    PlayStatus.FAILED, PlayStatus.TIMED_OUT -> Color(0xFFF87171)
-    PlayStatus.COACHING -> Color(0xFF38BDF8)
-    else -> Color(0xFF22D3EE)
+    PlayStatus.PASSED -> Color(0xFF57E39B)
+    PlayStatus.FAILED, PlayStatus.TIMED_OUT -> Color(0xFFFF5C7A)
+    PlayStatus.COACHING -> Color(0xFF7CD4FF)
+    else -> Color(0xFF25E0C8)
 }
 
 private fun colorForTag(tag: ColorTag?): Color = when (tag) {

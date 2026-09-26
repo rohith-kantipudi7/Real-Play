@@ -2,6 +2,9 @@ package com.cognex.realplay.engine
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.cognex.realplay.ai.AiRuntime
+import com.cognex.realplay.ai.ChallengeComposer
+import com.cognex.realplay.ai.LanguageModel
 import com.cognex.realplay.challenge.AgeBand
 import com.cognex.realplay.challenge.ChallengeRegistry
 import com.cognex.realplay.challenge.ChallengeSpec
@@ -43,11 +46,20 @@ class GameViewModel(
     private val ageBand: AgeBand = SessionConfig.ageBand,
     private val selectionMode: SelectionMode = SelectionMode.RECOMMENDED,
     private val verifierRegistry: VerifierRegistry = VerifierRegistry.default(),
-    challengeRegistry: ChallengeRegistry? = null
+    challengeRegistry: ChallengeRegistry? = null,
+    languageModel: LanguageModel? = null
 ) : ViewModel() {
 
     private val registry: ChallengeRegistry = challengeRegistry
         ?: ChallengeRegistry(listOf(G0LastResortGenerator(), G1MoveNearGenerator()))
+
+    /**
+     * The optional ON-DEVICE Gemma composer (§6.5). Off by default; only proposes when
+     * [AppSettings.aiComposerEnabled] is on AND a side-loaded Tier-B model is present. Its result is
+     * always speculative and validator-gated — the deterministic registry above is the
+     * truth-line-safe, always-offline fallback.
+     */
+    private val composer = ChallengeComposer(registry, languageModel ?: AiRuntime.model())
 
     private val session = GameSession()
     private val sm = GameStateMachine()
@@ -67,6 +79,12 @@ class GameViewModel(
 
     /** True once the player has made real progress on the current mission (a gate has samples). */
     private var started = false
+
+    /** Speculative composer plumbing (§6.5). Applied on the frame thread only, so no data races. */
+    private data class Composed(val index: Int, val key: String, val result: SelectionResult)
+    @Volatile private var pendingComposed: Composed? = null
+    private var composedForKey: String? = null
+    private var composerApplied = false
 
     private val _ui = MutableStateFlow(GameUiState.INITIAL)
     val ui: StateFlow<GameUiState> = _ui.asStateFlow()
@@ -120,7 +138,10 @@ class GameViewModel(
         // upgrades the first-frame G0 fallback to a real game once objects/players are detected, and
         // adapts if the scene changes (§13 S5 "removing an object mid-scan adapts"). Once real
         // progress exists we lock the choice so the gate can accumulate.
-        if (!started) maybeUpgrade(world, cap)
+        if (!started) {
+            consumePendingComposed()
+            if (!composerApplied) maybeUpgrade(world, cap)
+        }
 
         val runner = mission ?: return
         val spec = selection?.spec ?: return
@@ -166,6 +187,46 @@ class GameViewModel(
             startTs = 0L
             RpLog.i(RpLog.Tag.ENGINE, "Upgraded to ${result.winnerId} (${result.spec.type}) budget=${result.stepBudget}")
         }
+        requestComposeIfNeeded(world, cap, ctx, result)
+    }
+
+    /**
+     * Fires ONE speculative composer request per (challenge, winner) on its own coroutine (§3.3).
+     * Never blocks the frame loop; the result is picked up on a later frame by [consumePendingComposed].
+     */
+    private fun requestComposeIfNeeded(
+        world: WorldState,
+        cap: SceneCapability,
+        ctx: GenerationContext,
+        deterministic: SelectionResult
+    ) {
+        if (!composer.active()) return
+        val key = "$challengeIndex:${deterministic.winnerId}"
+        if (key == composedForKey) return
+        composedForKey = key
+        val idx = challengeIndex
+        viewModelScope.launch(Dispatchers.Default) {
+            val composed = composer.compose(world, cap, ctx, deterministic)
+            if (composed !== deterministic) pendingComposed = Composed(idx, key, composed)
+        }
+    }
+
+    /** Applies the latest validated composer result, on the frame thread, before the player starts. */
+    private fun consumePendingComposed() {
+        val p = pendingComposed ?: return
+        pendingComposed = null
+        if (sessionOver || started) return
+        if (p.index != challengeIndex || p.key != composedForKey) return
+        selection = p.result
+        mission = MissionRunner(p.result.spec, verifierRegistry)
+        startTs = 0L
+        composerApplied = true
+        RpLog.i(RpLog.Tag.AI, "composer applied ${p.result.winnerId} (${p.result.spec.type})")
+        _ui.value = _ui.value.copy(
+            instruction = p.result.spec.instruction,
+            winnerId = p.result.winnerId,
+            winnerType = p.result.spec.type.name
+        )
     }
 
     private fun startNewChallenge(world: WorldState, cap: SceneCapability) {
@@ -187,11 +248,15 @@ class GameViewModel(
         lastMeasured = null
         lastRequired = null
         lastEvidence = emptyList()
+        pendingComposed = null
+        composedForKey = null
+        composerApplied = false
 
         sm.transition(GameState.INSTRUCTION)
         sm.transition(GameState.PLAYING)
         RpLog.i(RpLog.Tag.ENGINE, "Selected ${result.winnerId} (${result.spec.type}) tier=${ctx.effectiveTier} budget=${result.stepBudget}")
         publishPlaying(result.spec, firstTick(result.spec), 0L)
+        requestComposeIfNeeded(world, cap, ctx, result)
     }
 
     private fun onPass(spec: ChallengeSpec, tick: MissionRunner.Tick, elapsedMs: Long) {

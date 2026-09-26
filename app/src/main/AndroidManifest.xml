@@ -3,6 +3,8 @@
 
     <uses-feature android:name="android.hardware.camera.any" android:required="true" />
     <uses-permission android:name="android.permission.CAMERA" />
+    <!-- RealPlay is offline-first: perception, the game engine and the optional on-device Gemma
+         composer all run locally. No INTERNET permission is required or requested. -->
 
     <application
         android:allowBackup="true"

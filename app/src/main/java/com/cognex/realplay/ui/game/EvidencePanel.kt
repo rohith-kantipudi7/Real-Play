@@ -33,7 +33,7 @@ fun EvidencePanel(
     if (evidence.isEmpty()) return
     Column(
         modifier = modifier
-            .background(Color(0xAA0B1220), RoundedCornerShape(10.dp))
+            .background(Color(0xAA161033), RoundedCornerShape(10.dp))
             .padding(horizontal = 14.dp, vertical = 10.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
@@ -51,7 +51,7 @@ private fun EvidenceRow(ev: Evidence) {
         )
         Text(
             text = if (ev.satisfied) "\u2713" else "\u2026",
-            color = if (ev.satisfied) Color(0xFF4ADE80) else Color(0xFFFBBF24),
+            color = if (ev.satisfied) Color(0xFF57E39B) else Color(0xFFFFB13A),
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.Bold
         )

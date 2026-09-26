@@ -34,12 +34,12 @@ fun CoachingToast(
     ) {
         Text(
             text = hint.orEmpty(),
-            color = Color(0xFFBAE6FD),
+            color = Color(0xFFBFF7EC),
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Medium,
             modifier = Modifier
-                .background(Color(0xCC0C4A6E), RoundedCornerShape(14.dp))
-                .border(1.dp, Color(0x66BAE6FD), RoundedCornerShape(14.dp))
+                .background(Color(0xE6241A4D), RoundedCornerShape(14.dp))
+                .border(1.dp, Color(0x6625E0C8), RoundedCornerShape(14.dp))
                 .padding(horizontal = 18.dp, vertical = 12.dp)
         )
     }

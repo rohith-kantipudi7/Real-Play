@@ -21,11 +21,11 @@ data class OverlayDetection(
     val right: Float,
     val bottom: Float,
     val label: String? = null,
-    val color: Color = Color(0xFF22D3EE)
+    val color: Color = Color(0xFF25E0C8)
 )
 
-private val CalibrationBoxColor = Color(0xFF22D3EE) // electric cyan
-private val CrosshairColor = Color(0xFFFBBF24)      // warm amber
+private val CalibrationBoxColor = Color(0xFF25E0C8) // turquoise
+private val CrosshairColor = Color(0xFFFFB13A)      // tangerine
 
 /**
  * Draws all camera overlays (detection boxes now; zones and skeletons in later stages) on top of

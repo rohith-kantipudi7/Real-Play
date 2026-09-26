@@ -149,6 +149,8 @@ class Tracker {
         var box: NormRect = NormRect(0f, 0f, 0f, 0f)
         var center: NormPoint = NormPoint(0f, 0f)
         val colorHist = FloatArray(ColorTag.entries.size)
+        /** Decaying vote per label, so a flickering class name settles on its majority (§12). */
+        val labelVotes = HashMap<String, Float>()
         var velocity: NormPoint = NormPoint(0f, 0f)
         var consecutiveHits = 0
         var missed = 0
@@ -165,6 +167,8 @@ class Tracker {
             box = det.box
             center = det.box.center
             det.color?.let { colorHist[it.ordinal] += 1f }
+            voteLabel(det.label, det.confidence)
+            label = smoothedLabel()
             velocity = NormPoint(0f, 0f)
             consecutiveHits = 1
             missed = 0
@@ -187,6 +191,8 @@ class Tracker {
             // Slow appearance EMA.
             for (i in colorHist.indices) colorHist[i] *= (1f - COLOR_EMA)
             det.color?.let { colorHist[it.ordinal] += COLOR_EMA }
+            voteLabel(det.label, det.confidence)
+            label = smoothedLabel()
             consecutiveHits++
             missed = 0
             ageFrames++
@@ -217,6 +223,25 @@ class Tracker {
             if (sum <= 0f) return 0.1f
             return 1f - (colorHist[color.ordinal] / sum)
         }
+
+        /** Decays existing votes and adds the current label, weighted by detection confidence. */
+        private fun voteLabel(raw: String, confidence: Float) {
+            if (labelVotes.isNotEmpty()) {
+                val it = labelVotes.iterator()
+                while (it.hasNext()) {
+                    val e = it.next()
+                    val decayed = e.value * (1f - LABEL_DECAY)
+                    if (decayed < 0.01f) it.remove() else e.setValue(decayed)
+                }
+            }
+            if (raw.isNotBlank()) {
+                labelVotes[raw] = (labelVotes[raw] ?: 0f) + LABEL_DECAY * confidence.coerceIn(0f, 1f)
+            }
+        }
+
+        /** The current majority label over recent frames, or "" while no confident name has won. */
+        private fun smoothedLabel(): String =
+            labelVotes.maxByOrNull { it.value }?.key ?: ""
 
         private fun dominantColor(): ColorTag? {
             var bestIdx = -1
@@ -259,5 +284,8 @@ class Tracker {
         const val EMA_ALPHA = 0.6f
         const val COLOR_EMA = 0.1f
         const val AMBIGUOUS_RATIO = 1.15f
+
+        /** Per-frame weight for the decaying label vote — steadies flickering class names (§12). */
+        const val LABEL_DECAY = 0.35f
     }
 }

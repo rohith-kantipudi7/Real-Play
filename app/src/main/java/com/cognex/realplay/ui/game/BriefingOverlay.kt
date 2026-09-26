@@ -96,7 +96,7 @@ fun BriefingOverlay(
                 )
                 Text(
                     text = label,
-                    color = if (count == 0) Color(0xFF4ADE80) else Color(0xFF22D3EE),
+                    color = if (count == 0) Color(0xFF57E39B) else Color(0xFF25E0C8),
                     style = MaterialTheme.typography.displayLarge,
                     fontWeight = FontWeight.Black,
                     modifier = Modifier

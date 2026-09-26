@@ -37,7 +37,7 @@ fun StepTracker(
     completedSteps: Int,
     stepProgress: Float,
     modifier: Modifier = Modifier,
-    activeColor: Color = Color(0xFF22D3EE)
+    activeColor: Color = Color(0xFF25E0C8)
 ) {
     if (stepCount <= 1) return
 
@@ -80,7 +80,7 @@ fun StepTracker(
                             .fillMaxWidth(animatedFill)
                             .height(14.dp)
                             .clip(RoundedCornerShape(7.dp))
-                            .background(if (done) Color(0xFF4ADE80) else activeColor)
+                            .background(if (done) Color(0xFF57E39B) else activeColor)
                     )
                     if (done) {
                         Text(

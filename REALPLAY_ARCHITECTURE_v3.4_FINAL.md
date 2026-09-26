@@ -2,13 +2,15 @@
 **Team Cognex · iQOO Hackathon 2026 · Hyderabad**
 **v3.4 — FREEZE CANDIDATE. Supersedes v3, v3.1, v3.2, v3.3, v3.3.1. This is the only file to attach as context.**
 
+> **v3.5 amendment (composition line only):** the Challenge Registry is a *library of verifiable skills*, and an optional AI *composer* arranges those skills — bound to the live WorldState and affordances — into `ChallengeSpec`s. The truth line, data model and freeze gate are unchanged. See §0.1 and §6.5.
+
 Device: iQOO 15 · SD 8 Elite Gen 5 · 16 GB · Android 16
 Build: ~15 **critical-path** hours · 2 people · 2 laptops · offline-first
 
-> **Governing law:** AI composes the challenge. Physics decides the result.
+> **Governing law:** AI composes the challenge from registered, verifiable skills. Physics decides the result.
 > No model output ever reaches PASS / FAIL.
 
-> **Core claim:** RealPlay has no predefined levels. It reads what is actually in front of it and composes a game from what that scene can support.
+> **Core claim:** RealPlay has no predefined levels and no fixed games. It reads what is actually in front of it and **composes a mission from a library of verifiable skills** — arranging proven, measurable primitives to fit what the scene can support.
 
 ---
 
@@ -25,6 +27,17 @@ v3.3 resolved four conflicts (C1–C4), four high issues (H1–H4) and seven med
 | **M8** | Prompt playbook heading said "Fourteen rules", list contained 16; rule 3 ("test on the phone, every prompt") contradicted the new JVM-only exemption | Both corrected in the playbook |
 
 **Kept unchanged from v3.3:** §12 measurement domains · §20 invariants · §21 freeze gate · AI-OFF gate · §3.2 dev-AI vs runtime-AI · §4.2 TemporalGate policy · track-only downgrade semantics · G0 totality · the §18 hallucination answer.
+
+## 0.1 v3.5 — the registry becomes a skill library
+
+v3.4 froze the truth line. **v3.5 reframes the composition line without touching it.** The Challenge Registry is now described as what it always structurally was: a **library of verifiable skills**, not a catalogue of fixed games. Two changes follow.
+
+| # | Was | Now |
+|---|---|---|
+| **S1** | The optional model only **re-ranked** the deterministic registry's pick and reworded it | The model is a **composer** (§6.5): a fully **on-device, offline** Gemma (`tasks-genai`, side-loaded Tier-B `.task`) that, given the feasible skill list + a live WorldState digest, selects registered skills, binds them to present actors, orders them into a 1–2 step mission and writes the wording. It still emits a *proposal* that must clear `SchemaValidator` |
+| **S2** | Generators were "the 8 games" | Generators are **skill templates** over the closed primitive set (§4.1). The deterministic composer builds from them and remains the always-present floor |
+
+**Nothing on the truth line moves.** The composer may only arrange primitives the verifier already knows how to measure; every proposal passes the same validator and safety gate; a rejected or absent proposal falls back to the deterministic composer with zero user-visible difference. Invariants 18–20 (§20) make this binding. The §3.4 package layout, §4 data model, §4.1 closed rule set and §7 generators are unchanged in shape — only their **framing, and the composer's authority to arrange them,** are new.
 
 ---
 
@@ -109,10 +122,10 @@ Tripod + tablecloth + lamp buy more demo reliability than any model choice.
 | Detection | EfficientDet-Lite0 → `realplay_props.tflite` → **label-free track-ID mode** as ultimate fallback |
 | Containment | Opaque box **removed**. Drop Zone (taped target) / Open Tray / Occlusion-as-signal |
 | Voice | Android `TextToSpeech` P0 · Kokoro P2 |
-| SLM | Gemma 3 1B, P1, **re-ranking + wording only**, lazy-loaded |
-| Selection | **Affordance-scored registry** (§6) — the core idea |
+| SLM | Gemma 3 1B, **on-device / offline** (side-loaded Tier-B `.task`), P1, **composes `ChallengeSpec`s from registered skills + wording** (§6.5), lazy-loaded. No network, no key. Never on the truth line |
+| Selection | **Affordance-scored skill library** (§6), arranged by a deterministic or AI composer — the core idea |
 | Difficulty | **Two axes — numeric knobs AND step count** (§8.1) |
-| Generators | **8 shipped** (G0–G7). G8/G9 deferred (§24) |
+| Generators | **8 skill templates shipped** (G0–G7). G8/G9 deferred (§24) |
 | Demo | RECOMMENDED / OPEN / PINNED. **No forced script** |
 | Build | Single `:app` module. No Hilt, no Room, no multi-module |
 
@@ -131,16 +144,16 @@ Tripod + tablecloth + lamp buy more demo reliability than any model choice.
 └──────┬────────────────────────────────┬───────────────┘
        │                                │
 ┌──────▼──────────────┐      ┌──────────▼───────────────┐
-│ CHALLENGE           │      │ VERIFICATION             │
-│ ChallengeRegistry   │─spec→│ VerifierRegistry         │
-│ 8 Generators        │      │ TemporalGate             │
+│ SKILL LIBRARY       │      │ VERIFICATION             │
+│ Registry of skills  │─spec→│ VerifierRegistry         │
+│ 8 skill templates   │      │ TemporalGate             │
 │ Requirement + score │      │ Evidence                 │
 │ SafetyFilter        │      │ → Pass / Fail / Unsure   │
 └──────┬──────────────┘      └──────────▲───────────────┘
        │ optional                       │
 ┌──────▼──────────────┐      ┌──────────┴───────────────┐
-│ AI (advisory only)  │      │ WORLD MODEL              │
-│ Gemma 1B · Validator│─────→│ WorldState               │
+│ AI COMPOSER (opt.)  │      │ WORLD MODEL              │
+│ Composer · Validator│─────→│ WorldState               │
 │ TTS Narrator        │ scene│ + Affordances            │
 └─────────────────────┘      │ + SceneCapability        │
                              └──────────▲───────────────┘
@@ -154,15 +167,16 @@ Tripod + tablecloth + lamp buy more demo reliability than any model choice.
 
 ### 3.1 The two lines
 ```
-TRUTH LINE : Perception → WorldState → Verifier(geometry + time) → PASS / FAIL / UNSURE
-ADVISORY   : WorldState → Affordances → Registry → (LLM re-rank) → Spec
+TRUTH LINE  : Perception → WorldState → Verifier(geometry + time) → PASS / FAIL / UNSURE
+COMPOSITION : WorldState → Affordances → Skill Library → (deterministic ∥ LLM composer) → ChallengeSpec
 ```
-The LLM touches only the advisory line. Delete it and the game is unchanged.
+The LLM touches only the composition line, and only by arranging registered, verifiable skills (§6.5). Delete it and the deterministic composer still produces a valid game — the truth line is unchanged either way.
 
 ### 3.2 Development AI vs Runtime AI
 ```
 DEVELOPMENT AI : Copilot / Claude / Gemini — writes code, tests, docs
-RUNTIME AI     : optional on-device small model — wording and ranking only
+RUNTIME AI     : optional small model — composes a spec by arranging registered
+                 skills + wording (§6.5); never judges the result
 ```
 Separate systems. Neither is on the truth path. Runtime AI is never required for the core loop. Say this out loud in Q&A; judges conflate them.
 
@@ -190,7 +204,8 @@ com.cognex.realplay
 ├── verify/      Verifier · VerifierRegistry · TemporalGate · Evidence · Geometry · PoseMath
 ├── engine/      GameStateMachine · MissionRunner · ScoreEngine · DifficultyDirector
 │                PlayerRegistry · GameViewModel · DemoController · SessionStore
-├── ai/          LanguageModel · GemmaModel · MockModel · PromptBuilder · SchemaValidator · Narrator
+├── ai/          LanguageModel · GemmaModel · CloudModel · MockModel · Composer
+│                PromptBuilder · SchemaValidator · Narrator
 └── device/      DeviceCapabilities · PerformanceProfile · ThermalManager
 ```
 `world/`, `challenge/`, `verify/` contain **zero Android imports** → fully JVM-testable.
@@ -324,7 +339,7 @@ POSE_MATCH  JOINT_ANGLE_WITHIN  LIMB_RAISED
 MOTION_BELOW  MOTION_ABOVE
 PLAYER_NEAR_OBJECT  PLAYER_HOLDS_OBJECT  PLAYER_IN_ZONE
 ```
-The LLM may emit only these enum values. The validator additionally rejects: unresolvable actor references · out-of-range parameters · unsafe verbs · generator types that scored zero · **rules whose capability flag is false** (§3.5) · **step counts exceeding the generator's `maxStepsForTier`** (§8.1).
+This closed set **is the skill library's primitive vocabulary** (§6.5) — every rule here is something the deterministic verifier can measure over time, and it is the *only* vocabulary either composer may draw from. The composer (deterministic or LLM) may emit only these enum values. The validator additionally rejects: unresolvable actor references · out-of-range parameters · unsafe verbs · generator types that scored zero · **rules whose capability flag is false** (§3.5) · **step counts exceeding the generator's `maxStepsForTier`** (§8.1).
 
 ### 4.2 TemporalGate policy
 ```
@@ -353,7 +368,9 @@ The LLM may emit only these enum values. The validator additionally rejects: unr
 
 # PART III — THE CORE IDEA
 
-## 6. Affordance-driven selection
+## 6. Affordance-driven selection — the skill library
+
+The Challenge Registry is a **library of verifiable skills**, not a list of fixed games (§6.5). Selection scores which skills the current scene can support; a composer — deterministic by default, optionally an LLM — then arranges the winners into a mission bound to real actors.
 
 Affordances are **derived, never detected** — ~1 ms, no extra model.
 
@@ -377,7 +394,11 @@ WorldState
         RECOMMENDED → argmax, stable tie-break by generator ID   (deterministic)
         OPEN        → weighted-random among score > 0            (varied)
         PINNED      → forced generator, still fully verified
-  → generate(world, affordances, stepBudget)   binds REAL track IDs, labels, colours
+  → COMPOSE (§6.5):
+        deterministic → winning skill's template.generate(...)  (always present)
+        LLM optional  → arrange feasible skills into a mission, validator-gated,
+                        else fall back to the deterministic spec
+      binds REAL track IDs, labels, colours → ChallengeSpec
 ```
 
 `SelectionMode` gives rehearsed reliability without hard-coded levels: determinism on an unchanged scene, while the ranking remains entirely scene-derived, so moving the props still changes the game.
@@ -428,7 +449,9 @@ All three are computed in `SceneCapability.from()` from data the pose detector a
 
 Richness remains a **first-class input to difficulty** (§8). A sparse scene cannot produce a hard challenge regardless of skill — but "sparse" is now correctly defined for both object scenes and human scenes.
 
-### 6.3 Generator interface ⭐ v3.4 adds `maxStepsForTier`
+### 6.3 Skill / generator interface ⭐ v3.4 adds `maxStepsForTier`
+
+A `ChallengeGenerator` is a **skill template**: it pairs one verifiable primitive (§4.1) with the logic to bind it to a real scene. Both the deterministic composer and the LLM composer (§6.5) draw from the same set of these — neither can reach outside it.
 
 ```kotlin
 enum class SelectionMode { RECOMMENDED, OPEN, PINNED }
@@ -481,6 +504,48 @@ Player variant : "Wave at me!"
                  → LIMB_RAISED + MOTION_ABOVE
 ```
 G0 always loses to a real game (0.05 < everything) but makes the registry **total** — it can never return null. **This is what makes the OPEN-mode finale on an unknown table safe.** The generator itself must never require a player, zone, semantic label, or any other capability in order to remain selectable. **Do not add requirements to G0.**
+
+### 6.5 The skill library and the composer ⭐ v3.5
+
+The registry is not a menu of fixed games — it is a **library of verifiable skills**. A *skill* is the smallest composable unit the system can both *generate* and *prove*:
+
+```
+skill = ( RuleId primitive from §4.1        // what the verifier can measure
+        + Requirement                        // what the scene must contain
+        + feasibility(cap)                   // how well THIS scene suits it
+        + parameter ranges                   // legal, safety-bounded knobs
+        + maxStepsForTier )                  // how far it may chain itself
+```
+
+The eight shipped generators (§7) are the **deterministic composer templates** over this library: each one knows how to bind a skill to real track IDs, labels and colours and emit a valid `ChallengeSpec`. They are the floor — the game is fully playable using them alone, with no model present.
+
+**Two composers, one contract.** Both emit the *same* `ChallengeSpec` type through the *same* `SchemaValidator` gate:
+
+```
+DETERMINISTIC COMPOSER (always present)
+  Registry argmax over feasible skills → template.generate() → ChallengeSpec
+  Deterministic, reproducible; the RECOMMENDED-mode default.
+
+**LLM COMPOSER (optional, on-device, off by default)**
+  Backend: Gemma via MediaPipe `tasks-genai`, loaded from a side-loaded Tier-B `.task`
+         bundle (/sdcard/realplay/models). Fully offline — no network, no API key.
+  Given: the feasible skill list (id, RuleId, requirement, param ranges,
+         maxSteps, feasibility, zeroReasons) + a live WorldState digest
+         (present actors, affordances, capability flags).
+  Task:  choose skills, bind them to present actors, order them into a
+         1–2 step mission, and write child-friendly wording.
+  Output: a candidate ChallengeSpec — a PROPOSAL, never an authority.
+```
+
+**What the composer may compose.** Only registered skills. It selects from the closed §4.1 primitive set, references only actors present in the current WorldState (§20.4), sets parameters only within each skill's published range, respects every §3.5 capability flag, and never exceeds `maxStepsForTier` (§8.1). It composes *structure and language*; it never invents a rule, a measurement, a threshold, or an actor the verifier cannot check.
+
+**What the validator rejects** (unchanged from §4.1, now the composer's hard boundary): unknown RuleId · unresolvable actor · out-of-range parameter · a skill that scored zero for this scene · a rule whose capability flag is false (§3.5) · step count over budget (§8.1) · anything `SafetyFilter` denied (§11). A rejected proposal is discarded silently and the deterministic composer's `ChallengeSpec` is used instead — **zero user-visible difference** (the AI-OFF gate, §S11).
+
+**Engine execution is unchanged.** The `GameStateMachine` and `MissionRunner` execute whichever `ChallengeSpec` wins, step by step, exactly as they do for a hand-written generator spec. They never know or care which composer produced it. The deterministic **Verifier remains the final and only authority** on PASS / FAIL / UNSURE (§4, §20.1).
+
+**Why this is safe.** The composer's freedom is bounded by construction: every primitive it can name is one the verifier already knows how to measure over time. The composer changes *which* verifiable game you play and *how it is worded* — it can never change *how a game is judged*.
+
+> **Governing law, restated for the composer:** the AI arranges proven skills into a mission; the physics engine, not the AI, decides whether the mission was completed.
 
 ---
 
@@ -939,8 +1004,8 @@ A zero **with a reason** convinces harder than any passing case.
 **"What does 'hard' actually mean?"** ⭐ new answer in v3.4
 > Two things. The numbers tighten — the distance threshold halves, the hold time quadruples, the pose tolerance drops from 30° to 12°. And the *shape* changes: at hard, a generator can compose two of its own primitives into an ordered mission on one clock. The mission runner enforces the ordering, and you get partial credit per step.
 
-**"Is the AI picking?"**
-> The deterministic registry always has a valid answer. The optional local model only re-ranks and writes wording. If it's wrong, we don't notice. It never touches pass/fail.
+**"Is the AI picking — or composing?"**
+> Both, on the composition line only. The deterministic composer always has a valid answer built from proven skills. The optional model can go further — it arranges those same registered skills into the mission and writes the wording — but every proposal must pass the validator, and the physics still judges it. If the model is wrong or absent, we fall back to the deterministic composer and don't notice. It never touches pass/fail.
 
 **"What if the room is empty?"**
 > Object games score zero and the last-resort generator takes over — it needs one object of any kind, no label, no zone. If a person is present, body games open up instead, and the scene-richness model renormalises around what the *person* is doing rather than what's on the table. The registry is total; it cannot return nothing.
@@ -983,7 +1048,8 @@ UI unfinished at h14    → STOP features, polish 3 screens (quality = 30% of th
 4.  A ChallengeSpec may reference only actors and capabilities present in the current WorldState.
 5.  Track-only perception cannot silently become semantic perception.
 6.  Physical distance is never claimed without validated calibration.
-7.  The runtime SLM can be deleted without changing the truth line.
+7.  The runtime SLM can be deleted without changing the truth line; the deterministic
+    composer keeps composing valid ChallengeSpecs in its absence.
 8.  Model loading is lazy and never blocks CameraX analysis.
 9.  SafetyFilter runs before generation and cannot be overridden by the LLM.
 10. SessionSnapshot is best-effort recovery, never evidence for PASS/FAIL.
@@ -997,6 +1063,15 @@ UI unfinished at h14    → STOP features, polish 3 screens (quality = 30% of th
     human-only scene may be permanently capped below its natural tier.   [v3.4]
 17. Step count never exceeds the generator's maxStepsForTier, and is always 1
     in TODDLER and EARLY bands.                                          [v3.4]
+18. The registry is a library of verifiable skills; a composer may only arrange
+    registered primitives — it can neither invent a RuleId, a threshold, nor an
+    actor the verifier cannot measure.                                   [v3.5]
+19. Both composers (deterministic and LLM) emit the same ChallengeSpec through the
+    same SchemaValidator and SafetyFilter; an LLM proposal that fails validation is
+    discarded and the deterministic composer's spec is used, with no user-visible
+    difference.                                                          [v3.5]
+20. The composer decides WHICH verifiable game is played and HOW it is worded,
+    never HOW it is judged. PASS/FAIL/UNSURE remains §4 verification code alone. [v3.5]
 ```
 
 ## 21. Architecture freeze gate
@@ -1050,7 +1125,7 @@ DEMO        deliberate failure fails · bad frame gives UNSURE
 ```
 
 ## 23. One sentence
-> **RealPlay is an offline-first, phone-native physical game engine: on-device perception builds a live world model, an affordance and capability layer determines what the current scene can actually support, a deterministic registry composes a mission — tightening thresholds and, at the top tier, chaining primitives into ordered multi-step missions — from verifiable rules, optional local AI improves wording and ranking without ever controlling truth, and deterministic geometry plus temporal evidence decide PASS, FAIL or UNSURE.**
+> **RealPlay is an offline-first, phone-native physical game engine: on-device perception builds a live world model, an affordance and capability layer determines what the current scene can actually support, a registry of verifiable skills is composed into a mission — by a deterministic composer or an optional AI composer that only arranges registered, measurable primitives — tightening thresholds and, at the top tier, chaining primitives into ordered multi-step missions, the game engine executes the resulting spec, and deterministic geometry plus temporal evidence remain the sole authority that decides PASS, FAIL or UNSURE.**
 
 ## 24. Deferred — designed, not built
 

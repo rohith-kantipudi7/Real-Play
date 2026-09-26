@@ -80,6 +80,9 @@ dependencies {
     // MediaPipe object detection (S2)
     implementation(libs.mediapipe.tasks.vision)
 
+    // On-device LLM composer — local, offline (S11 / §6.5). Loads a side-loaded Tier-B .task bundle.
+    implementation(libs.mediapipe.tasks.genai)
+
     // Test
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

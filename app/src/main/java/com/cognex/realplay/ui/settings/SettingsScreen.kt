@@ -78,6 +78,30 @@ fun SettingsScreen(
 
         Spacer(Modifier.height(32.dp))
         Text(
+            text = "AI composer (on-device)",
+            style = MaterialTheme.typography.titleLarge,
+            color = MaterialTheme.colorScheme.secondary
+        )
+        Spacer(Modifier.height(8.dp))
+
+        val aiComposer by AppSettings.aiComposerEnabled.collectAsState()
+        ToggleRow(
+            label = "Use Gemma to compose games",
+            checked = aiComposer,
+            onCheckedChange = AppSettings::setAiComposerEnabled
+        )
+        Text(
+            text = "Runs fully offline on this phone. Needs the side-loaded Gemma model in " +
+                "/sdcard/realplay/models. When off — or the model is absent — the game uses the " +
+                "built-in composer. The AI only arranges verifiable skills and wording; it never " +
+                "decides pass or fail.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 4.dp)
+        )
+
+        Spacer(Modifier.height(32.dp))
+        Text(
             text = "Developer",
             style = MaterialTheme.typography.titleLarge,
             color = MaterialTheme.colorScheme.secondary

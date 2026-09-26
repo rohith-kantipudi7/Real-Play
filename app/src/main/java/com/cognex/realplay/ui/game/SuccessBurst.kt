@@ -88,7 +88,7 @@ fun SuccessBurst(
         ) {
             Text(
                 text = if (perfect) "PERFECT!" else "NICE!",
-                color = if (perfect) Color(0xFFFDE047) else Color(0xFF4ADE80),
+                color = if (perfect) Color(0xFFFFD24B) else Color(0xFF57E39B),
                 style = MaterialTheme.typography.displaySmall,
                 fontWeight = FontWeight.Black
             )
@@ -107,11 +107,11 @@ fun SuccessBurst(
 private data class Particle(val dx: Float, val dy: Float, val speed: Float, val color: Color)
 
 private val PARTICLE_COLORS = arrayOf(
-    Color(0xFFFDE047),
-    Color(0xFF4ADE80),
-    Color(0xFF22D3EE),
-    Color(0xFFF472B6),
-    Color(0xFFA78BFA)
+    Color(0xFFFFD24B),
+    Color(0xFF57E39B),
+    Color(0xFF25E0C8),
+    Color(0xFFFF5CA8),
+    Color(0xFF9B6BFF)
 )
 
 private fun easeOut(t: Float): Float {

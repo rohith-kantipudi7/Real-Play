@@ -64,7 +64,7 @@ fun ResultScreen(onPlayAgain: () -> Unit, onHome: () -> Unit) {
         ) {
             StatCard("Score", "$total", RpCyan, Modifier.weight(1f))
             StatCard("Best streak", "$best", RpAmber, Modifier.weight(1f))
-            StatCard("Cleared", "$passed/${results.size}", Color(0xFF4ADE80), Modifier.weight(1f))
+            StatCard("Cleared", "$passed/${results.size}", Color(0xFF57E39B), Modifier.weight(1f))
         }
 
         Spacer(Modifier.height(24.dp))
@@ -104,7 +104,7 @@ private fun StatCard(label: String, value: String, accent: Color, modifier: Modi
 
 @Composable
 private fun ResultRow(r: ChallengeResult) {
-    val accent = if (r.passed) Color(0xFF4ADE80) else Color(0xFFF87171)
+    val accent = if (r.passed) Color(0xFF57E39B) else Color(0xFFFF5C7A)
     Column(
         modifier = Modifier
             .fillMaxWidth()

@@ -96,9 +96,9 @@ private fun StreakFlame(streak: Int) {
 private fun TimeBar(fraction: Float, remainingMs: Long?) {
     val animated by animateFloatAsState(fraction.coerceIn(0f, 1f), label = "timeBar")
     val barColor = when {
-        animated > 0.5f -> Color(0xFF4ADE80)
-        animated > 0.25f -> Color(0xFFFBBF24)
-        else -> Color(0xFFF87171)
+        animated > 0.5f -> Color(0xFF57E39B)
+        animated > 0.25f -> Color(0xFFFFB13A)
+        else -> Color(0xFFFF5C7A)
     }
     Row(verticalAlignment = Alignment.CenterVertically) {
         Box(
