@@ -73,6 +73,16 @@ Between games the flow must be calm and deliberate, each beat with a consistent 
 
 ### 3b. Tracking & HUD
 
+| Task | Status |
+|---|---|
+| **Scan-list detection UX** — replace bounding boxes with chips that fly from each detected object up into a top list; "Play with these" starts the game | ✅ (CalibrationScreen + ScanList.kt) |
+| Position‑smoothing / interpolation on the in‑GAME overlay boxes (glide, not jump) | ⬜ |
+| Tune coast/flicker window so a box never blinks out mid‑game | 🟡 |
+| Lock the challenge once it starts (no mid‑game swap) | ✅ (compose‑first) |
+| Simplify in‑game HUD (progress dots + one instruction + one ring) | ⬜ |
+| Smooth‑animate the goal cues (triangle edges, line‑up line, pose skeleton) | ⬜ |
+| Live FPS profile on the demo device; fall back to lighter detector if <10 fps | 🟡 |
+
 | Task | Status | Notes |
 |---|---|---|
 | Position‑smoothing / interpolation on overlay boxes (glide, not jump) | ⬜ | Render between 10fps detections so boxes don't teleport |

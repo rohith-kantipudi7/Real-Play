@@ -3,8 +3,12 @@ package com.cognex.realplay.ui.calibration
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -14,8 +18,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -25,6 +32,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.cognex.realplay.camera.CameraController
 import com.cognex.realplay.perception.ObjectDetectionPipeline
@@ -48,6 +56,7 @@ import kotlinx.coroutines.launch
  * S1/S2 calibration: live camera preview with the coordinate-mapper calibration overlay, live
  * detection boxes (label + confidence + colour), and an FPS/resolution readout.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun CalibrationScreen(onReady: () -> Unit, onBack: () -> Unit) {
     CameraPermissionGate {
@@ -58,9 +67,7 @@ fun CalibrationScreen(onReady: () -> Unit, onBack: () -> Unit) {
         val fps by controller.analyzer.fps.collectAsState()
         val analysisInfo by controller.analyzer.analysisInfo.collectAsState()
 
-        var showCalibration by remember { mutableStateOf(true) }
         var showCapability by remember { mutableStateOf(com.cognex.realplay.engine.AppSettings.devOverlayEnabled.value) }
-        var showCapabilityCard by remember { mutableStateOf(false) }
         var world by remember { mutableStateOf(WorldState.EMPTY) }
         var capReport by remember { mutableStateOf<SceneCapabilityReport?>(null) }
 
@@ -99,66 +106,111 @@ fun CalibrationScreen(onReady: () -> Unit, onBack: () -> Unit) {
             )
         }
 
-        Box(modifier = Modifier.fillMaxSize()) {
+        val devOverlay by com.cognex.realplay.engine.AppSettings.devOverlayEnabled.collectAsState()
+        // Detected object types (deduped by label) that have settled into the top list.
+        val listed = remember { mutableStateListOf<String>() }
+        // Chips currently flying up from the camera into the list.
+        val flying = remember { mutableStateListOf<FlyingSpec>() }
+        // Labels already listed or in flight, so each type flies up exactly once.
+        val seen = remember { mutableSetOf<String>() }
+        var nextId by remember { mutableStateOf(0L) }
+
+        BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+            val widthPx = constraints.maxWidth.toFloat()
+            val heightPx = constraints.maxHeight.toFloat()
+            val targetX = widthPx / 2f
+            val targetY = heightPx * 0.14f
+
             CameraPreview(controller = controller, modifier = Modifier.fillMaxSize())
 
-            OverlayCanvas(
-                analysisInfo = analysisInfo,
-                isFrontCamera = controller.isFrontCamera,
-                modifier = Modifier.fillMaxSize(),
-                showCalibration = showCalibration,
-                detections = overlayDetections
-            )
-
-            // Top scrim + readout — a friendly one-liner by default, raw FPS/geometry numbers only
-            // when the developer overlay is on (Settings → Developer).
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(120.dp)
-                    .background(Brush.verticalGradient(listOf(Color(0xCC000000), Color.Transparent)))
-            )
-            val info = analysisInfo
-            val readout = if (showCapability) {
-                buildString {
-                    append("FPS ")
-                    append(String.format("%.1f", fps))
-                    if (info != null) {
-                        append("   \u2022   ${info.imageW}\u00d7${info.imageH}")
-                    }
-                    append("   \u2022   ${world.objects.size} obj")
-                    if (!world.quality.good) {
-                        append("   \u2022   ${world.quality.reason ?: "POOR"}")
+            // Fly a chip up from each newly-settled object's position into the list — no bounding
+            // boxes; the list IS the "what I can see" reveal (scan-list UX).
+            LaunchedEffect(world) {
+                val info = analysisInfo ?: return@LaunchedEffect
+                if (widthPx < 1f || heightPx < 1f) return@LaunchedEffect
+                val mapper = com.cognex.realplay.camera.CoordinateMapper(
+                    imageW = info.imageW, imageH = info.imageH,
+                    rotationDegrees = info.rotationDegrees,
+                    isFrontCamera = controller.isFrontCamera,
+                    viewW = widthPx.toInt(), viewH = heightPx.toInt(),
+                    scaleType = com.cognex.realplay.camera.ScaleType.FILL_CENTER
+                )
+                world.objects.forEach { obj ->
+                    val label = obj.label
+                    if (obj.stable && label.isNotBlank() && label !in seen) {
+                        seen.add(label)
+                        val p = mapper.mapPoint((obj.box.left + obj.box.right) / 2f, (obj.box.top + obj.box.bottom) / 2f)
+                        flying.add(FlyingSpec(nextId++, label, p.x, p.y))
                     }
                 }
-            } else {
-                friendlyScanReadout(world)
             }
-            Text(
-                text = readout,
-                style = MaterialTheme.typography.labelLarge,
-                color = Color.White,
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .padding(top = 24.dp)
-                    .background(RpNavyDeep.copy(alpha = 0.7f), RoundedCornerShape(RpRadius.md))
-                    .padding(horizontal = RpSpace.md, vertical = RpSpace.sm)
-            )
 
-            // Dev capability panel (§S3.5.4) — every richness term, active branch, player terms,
-            // and the three capability flags, so they can be watched changing live.
-            val report = capReport
-            if (showCapability && report != null) {
+            // Developer overlay (boxes + raw counts) — off by default (Settings → Developer).
+            if (devOverlay) {
+                OverlayCanvas(
+                    analysisInfo = analysisInfo,
+                    isFrontCamera = controller.isFrontCamera,
+                    modifier = Modifier.fillMaxSize(),
+                    showCalibration = false,
+                    detections = overlayDetections
+                )
                 Text(
-                    text = capabilityReadout(report),
-                    style = MaterialTheme.typography.labelSmall,
+                    text = "FPS ${String.format("%.1f", fps)} \u00b7 ${world.objects.size} obj",
+                    style = MaterialTheme.typography.labelMedium,
                     color = Color.White,
                     modifier = Modifier
                         .align(Alignment.TopStart)
-                        .padding(start = RpSpace.md, top = 96.dp)
-                        .background(RpNavyDeep.copy(alpha = 0.75f), RoundedCornerShape(RpRadius.md))
-                        .padding(horizontal = RpSpace.sm + RpSpace.xs, vertical = RpSpace.sm)
+                        .padding(start = 12.dp, top = 130.dp)
+                        .background(RpNavyDeep.copy(alpha = 0.7f), RoundedCornerShape(RpRadius.sm))
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
                 )
+            }
+
+            // Top scrim so the list reads over any background.
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(240.dp)
+                    .background(Brush.verticalGradient(listOf(Color(0xE6000000), Color.Transparent)))
+            )
+
+            // The "Detected" list, filling one chip at a time.
+            Column(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .fillMaxWidth()
+                    .padding(top = 44.dp, start = RpSpace.md, end = RpSpace.md),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = if (listed.isEmpty()) "Scanning your table\u2026" else "Here's what I can see",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = Color.White,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Spacer(Modifier.height(12.dp))
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    listed.forEach { label -> key(label) { ScanChip(label) } }
+                }
+            }
+
+            // Chips in flight from the camera to the list.
+            flying.toList().forEach { spec ->
+                key(spec.id) {
+                    FlyingChip(
+                        spec = spec,
+                        targetX = targetX,
+                        targetY = targetY,
+                        onArrived = {
+                            if (spec.label !in listed) listed.add(spec.label)
+                            flying.remove(spec)
+                        }
+                    )
+                }
             }
 
             // Bottom scrim + controls.
@@ -166,51 +218,22 @@ fun CalibrationScreen(onReady: () -> Unit, onBack: () -> Unit) {
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
-                    .height(220.dp)
+                    .height(200.dp)
                     .background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xE6000000))))
             )
-            Column(
+            Row(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
                     .padding(RpSpace.lg),
-                horizontalAlignment = Alignment.CenterHorizontally
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    RpChip("Calibration", showCalibration, Modifier.weight(1f)) { showCalibration = !showCalibration }
-                    RpChip("Details", showCapability, Modifier.weight(1f)) { showCapability = !showCapability }
-                }
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = RpSpace.md - RpSpace.xs),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    RpOutlinedButton(text = "Back", onClick = onBack, modifier = Modifier.weight(1f))
-                    val usable = world.quality.good && world.objects.isNotEmpty()
-                    RpButton(
-                        text = if (usable) "Ready" else "Get set\u2026",
-                        onClick = { showCapabilityCard = true },
-                        enabled = usable,
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-            }
-
-            // §15 SceneCapabilityCard — shown once between CALIBRATING and the first BRIEFING.
-            if (showCapabilityCard) {
-                val cardModel = remember(world, capReport) {
-                    SceneCapabilityCardModel.from(
-                        cap = capReport?.capability ?: com.cognex.realplay.world.SceneCapability.EMPTY,
-                        ctx = capabilityCardContext(),
-                        registry = com.cognex.realplay.challenge.ChallengeRegistry.default(),
-                        objectLabels = world.objects.map { it.label }
-                    )
-                }
-                SceneCapabilityCard(
-                    model = cardModel,
-                    onDismiss = onReady,
-                    modifier = Modifier.fillMaxSize()
+                RpOutlinedButton(text = "Back", onClick = onBack, modifier = Modifier.weight(1f))
+                RpButton(
+                    text = if (listed.isEmpty()) "Point at objects\u2026" else "Play with these",
+                    onClick = onReady,
+                    enabled = listed.isNotEmpty(),
+                    modifier = Modifier.weight(1.4f)
                 )
             }
         }
