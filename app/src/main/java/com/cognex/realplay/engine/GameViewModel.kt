@@ -1,0 +1,316 @@
+package com.cognex.realplay.engine
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.cognex.realplay.challenge.AgeBand
+import com.cognex.realplay.challenge.ChallengeRegistry
+import com.cognex.realplay.challenge.ChallengeSpec
+import com.cognex.realplay.challenge.Difficulty
+import com.cognex.realplay.challenge.DifficultyKnobs
+import com.cognex.realplay.challenge.GenerationContext
+import com.cognex.realplay.challenge.SelectionMode
+import com.cognex.realplay.challenge.SelectionResult
+import com.cognex.realplay.challenge.generators.G0LastResortGenerator
+import com.cognex.realplay.challenge.generators.G1MoveNearGenerator
+import com.cognex.realplay.util.RpLog
+import com.cognex.realplay.verify.Evidence
+import com.cognex.realplay.verify.VerificationOutcome
+import com.cognex.realplay.verify.VerifierRegistry
+import com.cognex.realplay.world.SceneCapability
+import com.cognex.realplay.world.WorldState
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+
+/**
+ * Orchestrates one game session (Architecture §13 S5). Plain [ViewModel] — no Hilt. Exposes exactly
+ * ONE [StateFlow] of [GameUiState]; the UI is a pure function of it (§3.3).
+ *
+ * Threading contract (§3.3, §20): frames arrive from the analyzer/detector thread via
+ * [submitFrame]; all verification runs on [Dispatchers.Default] inside a single collector, never on
+ * the analyzer thread. The flow drops stale frames (conflated) so a slow verify can't back up the
+ * camera.
+ *
+ * Loop: select (scored registry) → run mission (per-step gates) → PASS advances the score and the
+ * next challenge; a timed challenge that runs out RETRIES (max 2) then counts as a fail; an Unsure
+ * frame only COACHES — it consumes no retry and never changes difficulty (§8, §20 invariant 2).
+ */
+class GameViewModel(
+    private val ageBand: AgeBand = AgeBand.MIDDLE,
+    private val selectionMode: SelectionMode = SelectionMode.RECOMMENDED,
+    private val verifierRegistry: VerifierRegistry = VerifierRegistry.default(),
+    challengeRegistry: ChallengeRegistry? = null
+) : ViewModel() {
+
+    private val registry: ChallengeRegistry = challengeRegistry
+        ?: ChallengeRegistry(listOf(G0LastResortGenerator(), G1MoveNearGenerator()))
+
+    private val session = GameSession()
+    private val sm = GameStateMachine()
+
+    private var mission: MissionRunner? = null
+    private var selection: SelectionResult? = null
+    private var startTs = 0L
+    private var retriesLeft = MAX_RETRIES
+    private var hintsUsed = 0
+    private var seedCounter = 0L
+    private var lastMeasured: Float? = null
+    private var lastRequired: Float? = null
+    private var sessionOver = false
+
+    /** True once the player has made real progress on the current mission (a gate has samples). */
+    private var started = false
+
+    private val _ui = MutableStateFlow(GameUiState.INITIAL)
+    val ui: StateFlow<GameUiState> = _ui.asStateFlow()
+
+    private data class FrameInput(val world: WorldState, val cap: SceneCapability)
+
+    private val frames = MutableSharedFlow<FrameInput>(
+        replay = 0, extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST
+    )
+
+    init {
+        viewModelScope.launch(Dispatchers.Default) {
+            frames.collect { process(it.world, it.cap) }
+        }
+    }
+
+    /** Called per world update from the UI collector. Non-blocking; verification is off-thread. */
+    fun submitFrame(world: WorldState, cap: SceneCapability) {
+        frames.tryEmit(FrameInput(world, cap))
+    }
+
+    /** Manual retry (the retry button). Resets the current mission if any retries remain. */
+    fun retry() {
+        val runner = mission ?: return
+        if (retriesLeft <= 0) return
+        retriesLeft--
+        runner.reset()
+        startTs = 0L
+        sm.reset(GameState.PLAYING)
+    }
+
+    /** Ends the session — the screen navigates to the result. */
+    fun finish() {
+        sessionOver = true
+        _ui.value = _ui.value.copy(sessionOver = true)
+    }
+
+    // ── core loop (off the analyzer thread) ──────────────────────────────────
+
+    private fun process(world: WorldState, cap: SceneCapability) {
+        if (sessionOver) return
+
+        if (mission == null) {
+            startNewChallenge(world, cap)
+            return
+        }
+        if (sm.state != GameState.PLAYING) return
+
+        // Before the player has done anything, keep the pick current as the scene populates — this
+        // upgrades the first-frame G0 fallback to a real game once objects/players are detected, and
+        // adapts if the scene changes (§13 S5 "removing an object mid-scan adapts"). Once real
+        // progress exists we lock the choice so the gate can accumulate.
+        if (!started) maybeUpgrade(world, cap)
+
+        val runner = mission ?: return
+        val spec = selection?.spec ?: return
+        if (startTs == 0L) startTs = world.timestampMs
+        val elapsed = world.timestampMs - startTs
+
+        val tick = runner.onFrame(world, world.timestampMs)
+        captureEvidence(tick.outcome)
+        if (tick.stepFired || tick.stepProgress > 0f) started = true
+
+        if (tick.missionComplete) {
+            onPass(spec, tick, elapsed)
+            return
+        }
+        if (spec.timeLimitMs != null && elapsed > spec.timeLimitMs) {
+            onTimeout(world, spec)
+            return
+        }
+        publishPlaying(spec, tick, elapsed)
+    }
+
+    /** Resolves the difficulty context WITHOUT mutating session state (safe to call every frame). */
+    private fun buildContext(cap: SceneCapability): GenerationContext {
+        val effectiveTier = Difficulty.effectiveTier(session.rating, cap.richness, ageBand, session.previousTier)
+        val knobs = DifficultyKnobs.forTier(effectiveTier, cap.spread, cap.stability)
+        return GenerationContext(
+            ageBand = ageBand,
+            effectiveTier = effectiveTier,
+            knobs = knobs,
+            trackOnlyMode = cap.trackOnlyMode,
+            recentTypes = session.recentTypes,
+            seed = seedCounter++
+        )
+    }
+
+    /** Swaps the challenge only when a different generator now wins (preserves gate progress). */
+    private fun maybeUpgrade(world: WorldState, cap: SceneCapability) {
+        val ctx = buildContext(cap)
+        val result = registry.select(world, cap, ctx, selectionMode)
+        if (result.winnerId != selection?.winnerId) {
+            selection = result
+            mission = MissionRunner(result.spec, verifierRegistry)
+            startTs = 0L
+            RpLog.i(RpLog.Tag.ENGINE, "Upgraded to ${result.winnerId} (${result.spec.type}) budget=${result.stepBudget}")
+        }
+    }
+
+    private fun startNewChallenge(world: WorldState, cap: SceneCapability) {
+        // Update the previous-tier memory once per challenge (for skill-tier hysteresis, §8).
+        session.previousTier = Difficulty.skillTier(session.rating, session.previousTier)
+        val ctx = buildContext(cap)
+
+        sm.reset(GameState.IDLE)
+        sm.transition(GameState.SELECTING)
+        val result = registry.select(world, cap, ctx, selectionMode)
+        selection = result
+        session.pushType(result.spec.type)
+        mission = MissionRunner(result.spec, verifierRegistry)
+        startTs = 0L
+        retriesLeft = MAX_RETRIES
+        hintsUsed = 0
+        started = false
+        lastMeasured = null
+        lastRequired = null
+
+        sm.transition(GameState.INSTRUCTION)
+        sm.transition(GameState.PLAYING)
+        RpLog.i(RpLog.Tag.ENGINE, "Selected ${result.winnerId} (${result.spec.type}) tier=${ctx.effectiveTier} budget=${result.stepBudget}")
+        publishPlaying(result.spec, firstTick(result.spec), 0L)
+    }
+
+    private fun onPass(spec: ChallengeSpec, tick: MissionRunner.Tick, elapsedMs: Long) {
+        if (!sm.transition(GameState.PASSED)) return
+        val fast = spec.timeLimitMs?.let { elapsedMs <= 0.3f * it } ?: false
+        session.recordPass(fast)
+        val completed = tick.completedSteps.coerceAtLeast(spec.steps.size)
+        val breakdown = ScoreEngine.compute(
+            baseScore = spec.baseScore,
+            passed = true,
+            completedSteps = completed,
+            stepCount = spec.steps.size,
+            elapsedMs = elapsedMs,
+            timeLimitMs = spec.timeLimitMs,
+            streak = session.streak,
+            hintsUsed = hintsUsed,
+            precisionMeasured = lastMeasured,
+            precisionRequired = lastRequired
+        )
+        session.addScore(breakdown.total)
+        sm.transition(GameState.RESULT)
+
+        _ui.value = _ui.value.copy(
+            status = PlayStatus.PASSED,
+            stepIndex = spec.steps.size - 1,
+            stepCount = spec.steps.size,
+            stepProgress = 1f,
+            score = session.totalScore,
+            streak = session.streak,
+            coachingHint = null,
+            evidenceLine = "+${breakdown.total} points",
+            timeRemainingMs = null,
+            retriesLeft = retriesLeft
+        )
+        // Advance to the next challenge on the following frame.
+        mission = null
+        selection = null
+        sm.reset(GameState.IDLE)
+    }
+
+    private fun onTimeout(world: WorldState, spec: ChallengeSpec) {
+        if (retriesLeft > 0) {
+            retriesLeft--
+            mission?.reset()
+            startTs = world.timestampMs
+            _ui.value = _ui.value.copy(
+                status = PlayStatus.PLAYING,
+                coachingHint = "Time! Try again.",
+                retriesLeft = retriesLeft,
+                timeRemainingMs = spec.timeLimitMs
+            )
+            return
+        }
+        if (!sm.transition(GameState.TIMED_OUT)) return
+        session.recordFail()
+        sm.transition(GameState.RESULT)
+        _ui.value = _ui.value.copy(
+            status = PlayStatus.TIMED_OUT,
+            coachingHint = "Out of time — new challenge coming up.",
+            score = session.totalScore,
+            streak = session.streak,
+            retriesLeft = retriesLeft
+        )
+        mission = null
+        selection = null
+        sm.reset(GameState.IDLE)
+    }
+
+    private fun publishPlaying(spec: ChallengeSpec, tick: MissionRunner.Tick, elapsedMs: Long) {
+        val coaching = (tick.outcome as? VerificationOutcome.Unsure)?.coachingHint ?: tick.coachingHint
+        val status = if (tick.outcome is VerificationOutcome.Unsure) PlayStatus.COACHING else PlayStatus.PLAYING
+        val timeRemaining = spec.timeLimitMs?.let { (it - elapsedMs).coerceAtLeast(0L) }
+        _ui.value = _ui.value.copy(
+            status = status,
+            instruction = spec.instruction,
+            stepIndex = tick.stepIndex,
+            stepCount = spec.steps.size,
+            stepProgress = tick.stepProgress,
+            score = session.totalScore,
+            streak = session.streak,
+            coachingHint = coaching,
+            evidenceLine = evidenceLine(tick.outcome),
+            timeRemainingMs = timeRemaining,
+            retriesLeft = retriesLeft,
+            winnerId = selection?.winnerId ?: "",
+            winnerType = spec.type.name,
+            ranked = selection?.ranked ?: emptyList()
+        )
+    }
+
+    private fun firstTick(spec: ChallengeSpec): MissionRunner.Tick = MissionRunner.Tick(
+        stepIndex = 0,
+        stepProgress = 0f,
+        outcome = VerificationOutcome.Unsure(spec.hints.firstOrNull() ?: "Let's go!"),
+        stepFired = false,
+        missionComplete = false,
+        completedSteps = 0,
+        coachingHint = spec.hints.firstOrNull()
+    )
+
+    private fun captureEvidence(outcome: VerificationOutcome) {
+        val ev = when (outcome) {
+            is VerificationOutcome.Pass -> outcome.evidence.firstOrNull()
+            is VerificationOutcome.Fail -> outcome.evidence.firstOrNull()
+            is VerificationOutcome.Unsure -> null
+        }
+        if (ev != null) {
+            lastMeasured = ev.measured
+            lastRequired = ev.required
+        }
+    }
+
+    /** Honest NORMALIZED wording (§12) — never a fabricated centimetre. */
+    private fun evidenceLine(outcome: VerificationOutcome): String? {
+        val ev: Evidence = when (outcome) {
+            is VerificationOutcome.Pass -> outcome.evidence.firstOrNull() ?: return null
+            is VerificationOutcome.Fail -> outcome.evidence.firstOrNull() ?: return null
+            is VerificationOutcome.Unsure -> return null
+        }
+        val measured = String.format("%.2f", ev.measured)
+        val required = String.format("%.2f", ev.required)
+        return "${ev.label}: $measured ${ev.comparator} $required"
+    }
+
+    private companion object {
+        const val MAX_RETRIES = 2
+    }
+}

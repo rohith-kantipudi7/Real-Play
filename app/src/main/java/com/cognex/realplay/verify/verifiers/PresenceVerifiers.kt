@@ -19,6 +19,11 @@ import kotlin.math.abs
  * OBJECT_PRESENT (Architecture §4.1). actors[0] = object. Pass when the object is resolvable with
  * enough confidence; missing/ambiguous/low-confidence → Unsure (never Fail — absence of evidence
  * is not evidence of absence for this rule).
+ *
+ * Optional `minArea` param (§6.4 / §7 — "bring it close"): when > 0, the object must also fill at
+ * least that fraction of the frame, so "bring the glowing object close to the camera" only passes
+ * once it is genuinely large. Below the area it FAILS (the object is present but too far), which is
+ * confidently-false evidence, not uncertainty.
  */
 internal class ObjectPresentVerifier : Verifier {
     override val rule = RuleId.OBJECT_PRESENT
@@ -29,6 +34,14 @@ internal class ObjectPresentVerifier : Verifier {
         val obj = when (val r = Resolution.requireObject(spec.actorAt(0), world, "object")) {
             is Resolution.ObjectResolution.Found -> r.obj
             is Resolution.ObjectResolution.Missing -> return r.eval
+        }
+        val minArea = step.p("minArea", 0f)
+        if (minArea > 0f) {
+            val area = obj.box.area
+            val satisfied = area >= minArea
+            val ev = listOf(evidence("area", area, minArea, ">=", satisfied))
+            return if (satisfied) Resolution.pass(obj.confidence, ev)
+            else Resolution.fail("Bring it closer to the camera", ev)
         }
         val ev = listOf(evidence("present", 1f, 1f, "==", true))
         return Resolution.pass(obj.confidence, ev)
