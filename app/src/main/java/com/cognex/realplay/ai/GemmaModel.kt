@@ -19,8 +19,9 @@ import java.io.File
  * [isAvailable] is false, so the deterministic composer is always used (the §S11 "AI-OFF" gate).
  *
  * MODEL RESOLUTION (§1.2 Tier-B, side-loaded to /sdcard/realplay/models/, never committed):
- *   1. gemma3-1b-it-int4.task   (primary)
- *   2. qwen2.5-1.5b-instruct.task (backup)
+ *   1. gemma-3n-E4B-it-int4.task  (primary — effective 4B, mobile-optimised)
+ *   2. gemma3-1b-it-int4.task     (smaller/faster fallback)
+ *   3. qwen2.5-1.5b-instruct.task (backup)
  *
  * Threading (§3.3): the model is lazily loaded and inference runs on [Dispatchers.IO], serialised
  * by a [Mutex] (one generation at a time), under a hard [TIMEOUT_MS]. A timeout returns null and
@@ -80,10 +81,11 @@ class GemmaModel(private val context: Context) : LanguageModel {
 
     private companion object {
         val TIER_B_CANDIDATES = listOf(
+            "/sdcard/realplay/models/gemma-3n-E4B-it-int4.task",
             "/sdcard/realplay/models/gemma3-1b-it-int4.task",
             "/sdcard/realplay/models/qwen2.5-1.5b-instruct.task"
         )
-        const val TIMEOUT_MS = 3_000L   // §3.3 hard timeout
+        const val TIMEOUT_MS = 8_000L   // §3.3 hard timeout — 4B on-device is slower; only a fallback
         const val MAX_TOKENS = 512
     }
 }

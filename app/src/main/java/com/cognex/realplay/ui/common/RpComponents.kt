@@ -105,15 +105,45 @@ fun RpHeroBackground(modifier: Modifier = Modifier) {
     }
 }
 
-/** A simple aperture/lens mark (no image assets) — reads as "camera", RealPlay's whole premise. */
+/** The RealPlay brand mark (no image assets): a glowing camera aperture with a play triangle at
+ *  its centre — "a camera you play with", the whole premise in one shape. */
 @Composable
-fun RpLogoMark(modifier: Modifier = Modifier, markSize: androidx.compose.ui.unit.Dp = 88.dp) {
+fun RpLogoMark(modifier: Modifier = Modifier, markSize: androidx.compose.ui.unit.Dp = 96.dp) {
     Canvas(modifier = modifier.size(markSize)) {
-        val radius = size.minDimension / 2f
-        val stroke = radius * 0.14f
-        drawCircle(color = RpCyan.copy(alpha = 0.14f), radius = radius)
-        drawCircle(color = RpCyan, radius = radius - stroke, style = Stroke(width = stroke))
-        drawCircle(color = RpAmber, radius = radius * 0.32f)
+        val c = center
+        val r = size.minDimension / 2f
+        val ring = r * 0.12f
+
+        // Soft outer glow so the mark sits in real depth, not on a flat disc.
+        drawCircle(
+            brush = Brush.radialGradient(listOf(RpCyan.copy(alpha = 0.30f), Color.Transparent), center = c, radius = r),
+            radius = r
+        )
+        // Six aperture blades hinting at a camera iris.
+        val bladeR = r * 0.82f
+        for (i in 0 until 6) {
+            val a = Math.toRadians((i * 60).toDouble())
+            val a2 = Math.toRadians((i * 60 + 44).toDouble())
+            drawLine(
+                color = RpCyan.copy(alpha = 0.28f),
+                start = Offset(c.x + bladeR * kotlin.math.cos(a).toFloat(), c.y + bladeR * kotlin.math.sin(a).toFloat()),
+                end = Offset(c.x + bladeR * kotlin.math.cos(a2).toFloat(), c.y + bladeR * kotlin.math.sin(a2).toFloat()),
+                strokeWidth = ring * 0.5f
+            )
+        }
+        // Outer lens ring + a dimmer inner ring for aperture depth.
+        drawCircle(color = RpCyan, radius = r - ring, style = Stroke(width = ring))
+        drawCircle(color = RpCyan.copy(alpha = 0.35f), radius = r * 0.60f, style = Stroke(width = ring * 0.55f))
+
+        // Central play triangle (amber) — the "play" in RealPlay.
+        val t = r * 0.32f
+        val play = androidx.compose.ui.graphics.Path().apply {
+            moveTo(c.x - t * 0.52f, c.y - t)
+            lineTo(c.x - t * 0.52f, c.y + t)
+            lineTo(c.x + t, c.y)
+            close()
+        }
+        drawPath(play, color = RpAmber)
     }
 }
 

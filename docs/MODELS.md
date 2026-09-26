@@ -58,6 +58,32 @@ adb logcat -s RealPlay/MODEL
 Tier-B models live in `/sdcard/realplay/models/` and are optional by definition. The app runs
 identically with that directory empty. See §1.2 of the architecture.
 
+### On-device composer fallback — Gemma 3n E4B (effective 4B)
+
+This is the **offline fallback** for the v3.7 challenge composer (used only when the cloud model is
+unreachable). It is optional — with it absent, the app still composes games via the cloud, then the
+deterministic composer.
+
+- **Model:** Gemma 3n E4B, 4-bit, MediaPipe `.task` format (`gemma-3n-E4B-it-int4.task`, ~4.4 GB).
+- **Download (gated — sign in to Hugging Face and accept Google's Gemma licence first):**
+  - Model page: https://huggingface.co/google/gemma-3n-E4B-it-litert-preview
+  - Direct file: https://huggingface.co/google/gemma-3n-E4B-it-litert-preview/resolve/main/gemma-3n-E4B-it-int4.task?download=true
+  - Easiest path on a phone: install the **Google AI Edge Gallery** app
+    (https://play.google.com/store/apps/details?id=com.google.ai.edge.gallery) and download
+    Gemma 3n E4B in-app.
+
+Push it to the device (the exact filename matters — `GemmaModel` looks for it):
+
+```powershell
+adb shell mkdir -p /sdcard/realplay/models
+adb push gemma-3n-E4B-it-int4.task /sdcard/realplay/models/gemma-3n-E4B-it-int4.task
+```
+
+`GemmaModel` resolves, in order: `gemma-3n-E4B-it-int4.task` → `gemma3-1b-it-int4.task` →
+`qwen2.5-1.5b-instruct.task`. Requires `com.google.mediapipe:tasks-genai` ≥ 0.10.24 (already set).
+A high-end device (Pixel 8 / Galaxy S23 or newer, ≥ 8 GB RAM) is recommended for the 4B model.
+
+
 ---
 
 # Full download reference — every model, where to get it

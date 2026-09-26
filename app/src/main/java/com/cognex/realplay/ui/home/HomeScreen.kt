@@ -2,11 +2,13 @@ package com.cognex.realplay.ui.home
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -39,19 +41,19 @@ fun HomeScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 24.dp, vertical = 32.dp)
-                .padding(bottom = 24.dp)
+                .systemBarsPadding()
+                .padding(horizontal = 24.dp, vertical = 20.dp)
         ) {
-            Spacer(Modifier.weight(0.7f))
-            RpLogoMark()
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.weight(0.9f))
+            RpLogoMark(markSize = 112.dp)
+            Spacer(Modifier.height(24.dp))
             Text(
                 text = "REALPLAY",
                 style = MaterialTheme.typography.displayLarge,
                 color = RpCyan,
                 fontWeight = FontWeight.Black
             )
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(10.dp))
             Text(
                 text = "Your world is the game.",
                 style = MaterialTheme.typography.titleLarge,
@@ -59,7 +61,15 @@ fun HomeScreen(
                 fontWeight = FontWeight.Medium,
                 textAlign = TextAlign.Center
             )
-            Spacer(Modifier.weight(0.6f))
+            Spacer(Modifier.height(6.dp))
+            Text(
+                text = "Point the camera at your table and the AI builds a game from what it sees.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = RpOnDarkMuted,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(horizontal = 16.dp)
+            )
+            Spacer(Modifier.weight(1f))
             RpButton(
                 text = "PLAY",
                 onClick = onPlay,
@@ -77,9 +87,11 @@ fun HomeScreen(
                     .fillMaxWidth()
                     .height(56.dp)
             )
-            Spacer(Modifier.height(12.dp))
-            RpTextButton(text = "Settings", onClick = onSettings, modifier = Modifier.fillMaxWidth())
-            RpTextButton(text = "VR Preview (concept)", onClick = onVrPreview, modifier = Modifier.fillMaxWidth())
+            Spacer(Modifier.height(8.dp))
+            Row(modifier = Modifier.fillMaxWidth()) {
+                RpTextButton(text = "Settings", onClick = onSettings, modifier = Modifier.weight(1f))
+                RpTextButton(text = "VR Preview", onClick = onVrPreview, modifier = Modifier.weight(1f))
+            }
             Spacer(Modifier.weight(0.15f))
             Text(
                 text = "Offline-first · on-device · Team Cognex",

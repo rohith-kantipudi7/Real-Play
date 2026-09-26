@@ -14,7 +14,7 @@ camerax = "1.4.0"
 mediapipeTasksVision = "0.10.18"
 
 # ── P1 (declared, not wired until S11) ──
-mediapipeTasksGenai = "0.10.18"
+mediapipeTasksGenai = "0.10.24"
 
 # ── P2 (declared, not wired) ──
 onnxruntimeAndroid = "1.19.2"
