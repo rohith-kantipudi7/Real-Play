@@ -18,10 +18,8 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -30,16 +28,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.cognex.realplay.camera.CameraController
-import com.cognex.realplay.engine.GameUiState
 import com.cognex.realplay.engine.GameViewModel
 import com.cognex.realplay.engine.PlayStatus
 import com.cognex.realplay.perception.ObjectDetectionPipeline
+import com.cognex.realplay.present.Hud
 import com.cognex.realplay.ui.camera.CameraPermissionGate
 import com.cognex.realplay.ui.camera.CameraPreview
 import com.cognex.realplay.ui.overlay.OverlayCanvas
-import com.cognex.realplay.ui.overlay.OverlayDetection
-import com.cognex.realplay.ui.overlay.OverlayZone
-import com.cognex.realplay.world.ColorTag
+import com.cognex.realplay.ui.present.MobileTarget
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 
@@ -63,10 +59,8 @@ fun GameScreen(onFinish: () -> Unit, onBack: () -> Unit) {
         val sound = remember { SoundManager() }
 
         val ui by vm.ui.collectAsState()
+        val model by vm.renderModel.collectAsState()
         val analysisInfo by controller.analyzer.analysisInfo.collectAsState()
-
-        var overlay by remember { mutableStateOf<List<OverlayDetection>>(emptyList()) }
-        var overlayZones by remember { mutableStateOf<List<OverlayZone>>(emptyList()) }
 
         DisposableEffect(controller) {
             val pipeline = ObjectDetectionPipeline(context.applicationContext)
@@ -75,28 +69,15 @@ fun GameScreen(onFinish: () -> Unit, onBack: () -> Unit) {
                 combine(pipeline.worldState, pipeline.capabilityReport) { world, report ->
                     world to report
                 }.collect { (world, report) ->
+                    // The engine composes the device-independent RenderModel from this frame; the
+                    // overlay + HUD below render only that (§3.6, §20 invariant 21).
                     vm.submitFrame(world, report.capability)
-                    overlay = world.objects.map { obj ->
-                        OverlayDetection(
-                            left = obj.box.left, top = obj.box.top, right = obj.box.right, bottom = obj.box.bottom,
-                            label = "#${obj.trackId} ${obj.label}",
-                            color = colorForTag(obj.color)
-                        )
-                    }
-                    overlayZones = world.zones.map { z ->
-                        OverlayZone(
-                            polygon = z.polygon.map { it.x to it.y },
-                            color = colorForTag(z.color)
-                        )
-                    }
                 }
             }
             onDispose {
                 controller.analyzer.frameSink = null
                 job.cancel()
                 pipeline.close()
-                overlay = emptyList()
-                overlayZones = emptyList()
             }
         }
         DisposableEffect(controller) { onDispose { controller.shutdown() } }
@@ -127,25 +108,25 @@ fun GameScreen(onFinish: () -> Unit, onBack: () -> Unit) {
                 isFrontCamera = controller.isFrontCamera,
                 modifier = Modifier.fillMaxSize(),
                 showCalibration = false,
-                detections = overlay,
-                zones = overlayZones
+                detections = MobileTarget.detections(model),
+                zones = MobileTarget.zones(model)
             )
 
             HudBar(
-                score = ui.score,
-                streak = ui.streak,
-                challengeIndex = ui.challengeIndex,
-                timeFraction = ui.timeFraction,
-                timeRemainingMs = ui.timeRemainingMs,
+                score = model.hud.score,
+                streak = model.hud.streak,
+                challengeIndex = model.hud.challengeIndex,
+                timeFraction = model.hud.timeFraction,
+                timeRemainingMs = model.hud.timeRemainingMs,
                 modifier = Modifier.align(Alignment.TopCenter)
             )
 
-            GamePlayColumn(ui = ui, modifier = Modifier.align(Alignment.Center))
+            GamePlayColumn(hud = model.hud, modifier = Modifier.align(Alignment.Center))
 
             // Coaching toast sits just above the controls.
             CoachingToast(
-                hint = ui.coachingHint,
-                visible = ui.status == PlayStatus.COACHING,
+                hint = model.hud.coachingHint,
+                visible = model.hud.status == PlayStatus.COACHING,
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .padding(bottom = 108.dp)
@@ -170,25 +151,25 @@ fun GameScreen(onFinish: () -> Unit, onBack: () -> Unit) {
 
             // Pre-challenge briefing + countdown (on top of everything).
             BriefingOverlay(
-                challengeKey = ui.challengeIndex,
-                instruction = ui.instruction,
+                challengeKey = model.hud.challengeIndex,
+                instruction = model.hud.instruction,
                 onTick = { sound.countdown() },
                 onGo = { sound.start() }
             )
 
             // Success celebration.
             SuccessBurst(
-                visible = ui.status == PlayStatus.PASSED,
-                perfect = ui.perfect,
-                gainedPoints = ui.lastGain,
-                triggerKey = if (ui.status == PlayStatus.PASSED) ui.challengeIndex else 0
+                visible = model.hud.status == PlayStatus.PASSED,
+                perfect = model.hud.perfect,
+                gainedPoints = model.hud.lastGain,
+                triggerKey = if (model.hud.status == PlayStatus.PASSED) model.hud.challengeIndex else 0
             )
         }
     }
 }
 
 @Composable
-private fun GamePlayColumn(ui: GameUiState, modifier: Modifier = Modifier) {
+private fun GamePlayColumn(hud: Hud, modifier: Modifier = Modifier) {
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -197,7 +178,7 @@ private fun GamePlayColumn(ui: GameUiState, modifier: Modifier = Modifier) {
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         Text(
-            text = ui.instruction,
+            text = hud.instruction,
             color = Color.White,
             style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.SemiBold
@@ -205,12 +186,12 @@ private fun GamePlayColumn(ui: GameUiState, modifier: Modifier = Modifier) {
 
         // The persuasive hold-ring with the status glyph in the centre.
         ProgressRing(
-            progress = ui.stepProgress,
-            color = statusColor(ui.status)
+            progress = hud.stepProgress,
+            color = statusColor(hud.status)
         ) {
             Text(
-                text = statusWord(ui.status),
-                color = statusColor(ui.status),
+                text = statusWord(hud.status),
+                color = statusColor(hud.status),
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Black
             )
@@ -218,14 +199,14 @@ private fun GamePlayColumn(ui: GameUiState, modifier: Modifier = Modifier) {
 
         // Multi-step tracker (renders only when stepCount > 1).
         StepTracker(
-            stepIndex = ui.stepIndex,
-            stepCount = ui.stepCount,
-            completedSteps = ui.completedSteps,
-            stepProgress = ui.stepProgress
+            stepIndex = hud.stepIndex,
+            stepCount = hud.stepCount,
+            completedSteps = hud.completedSteps,
+            stepProgress = hud.stepProgress
         )
 
         // Domain-aware measurement panel.
-        EvidencePanel(evidence = ui.evidence)
+        EvidencePanel(evidence = hud.evidence)
 
         Spacer(Modifier.height(4.dp))
     }
@@ -245,19 +226,4 @@ private fun statusColor(status: PlayStatus): Color = when (status) {
     PlayStatus.FAILED, PlayStatus.TIMED_OUT -> Color(0xFFFF5C7A)
     PlayStatus.COACHING -> Color(0xFF7CD4FF)
     else -> Color(0xFF25E0C8)
-}
-
-private fun colorForTag(tag: ColorTag?): Color = when (tag) {
-    ColorTag.RED -> Color(0xFFF87171)
-    ColorTag.ORANGE -> Color(0xFFFB923C)
-    ColorTag.YELLOW -> Color(0xFFFDE047)
-    ColorTag.GREEN -> Color(0xFF4ADE80)
-    ColorTag.CYAN -> Color(0xFF22D3EE)
-    ColorTag.BLUE -> Color(0xFF60A5FA)
-    ColorTag.PURPLE -> Color(0xFFA78BFA)
-    ColorTag.PINK -> Color(0xFFF472B6)
-    ColorTag.WHITE -> Color(0xFFF1F5F9)
-    ColorTag.GRAY -> Color(0xFF94A3B8)
-    ColorTag.BLACK -> Color(0xFF334155)
-    else -> Color(0xFF22D3EE)
 }

@@ -13,6 +13,9 @@ import com.cognex.realplay.challenge.DifficultyKnobs
 import com.cognex.realplay.challenge.GenerationContext
 import com.cognex.realplay.challenge.SelectionMode
 import com.cognex.realplay.challenge.SelectionResult
+import com.cognex.realplay.present.RenderModel
+import com.cognex.realplay.present.ScenePerception
+import com.cognex.realplay.present.SceneComposer
 import com.cognex.realplay.util.RpLog
 import com.cognex.realplay.verify.Evidence
 import com.cognex.realplay.verify.VerificationOutcome
@@ -23,8 +26,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 /**
@@ -87,6 +93,23 @@ class GameViewModel(
     private val _ui = MutableStateFlow(GameUiState.INITIAL)
     val ui: StateFlow<GameUiState> = _ui.asStateFlow()
 
+    /**
+     * The frame's perception-derived overlays (Architecture §3.6). Updated on every [submitFrame] so
+     * the scene overlay tracks the camera at frame rate, independently of the (off-thread) verdict
+     * updates to [_ui].
+     */
+    private val _scene = MutableStateFlow(ScenePerception.EMPTY)
+
+    /**
+     * The device-independent [RenderModel] the presentation layer renders (Architecture §3.6, §27).
+     * Derived purely from [_ui] (engine state) + [_scene] (perception overlays) via [SceneComposer];
+     * the engine itself never draws (§20 invariant 21). `MobileTarget` adapts this for the phone;
+     * a future `VrTarget` would consume the identical model.
+     */
+    val renderModel: StateFlow<RenderModel> =
+        combine(_ui, _scene) { ui, scene -> SceneComposer.compose(ui, scene) }
+            .stateIn(viewModelScope, SharingStarted.Eagerly, SceneComposer.EMPTY)
+
     private data class FrameInput(val world: WorldState, val cap: SceneCapability)
 
     private val frames = MutableSharedFlow<FrameInput>(
@@ -102,6 +125,7 @@ class GameViewModel(
 
     /** Called per world update from the UI collector. Non-blocking; verification is off-thread. */
     fun submitFrame(world: WorldState, cap: SceneCapability) {
+        _scene.value = ScenePerception.fromWorld(world)
         frames.tryEmit(FrameInput(world, cap))
     }
 
