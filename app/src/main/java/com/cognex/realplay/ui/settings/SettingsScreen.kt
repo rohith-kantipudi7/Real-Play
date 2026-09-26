@@ -97,8 +97,21 @@ fun SettingsScreen(
                 ToggleRow(
                     label = "Force track-only mode",
                     checked = forceTrackOnly,
-                    onCheckedChange = AppSettings::setForceTrackOnly,
+                    onCheckedChange = AppSettings::setForceTrackOnly
+                )
+                val devOverlay by AppSettings.devOverlayEnabled.collectAsState()
+                ToggleRow(
+                    label = "Show developer overlay",
+                    checked = devOverlay,
+                    onCheckedChange = AppSettings::setDevOverlayEnabled,
                     divider = false
+                )
+                Text(
+                    text = "Raw scene/difficulty numbers over the camera preview. Off by default — " +
+                        "only useful for debugging on this device.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 4.dp)
                 )
             }
         }

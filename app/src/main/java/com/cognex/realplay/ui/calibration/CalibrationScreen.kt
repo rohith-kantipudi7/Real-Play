@@ -59,7 +59,7 @@ fun CalibrationScreen(onReady: () -> Unit, onBack: () -> Unit) {
         val analysisInfo by controller.analyzer.analysisInfo.collectAsState()
 
         var showCalibration by remember { mutableStateOf(true) }
-        var showCapability by remember { mutableStateOf(true) }
+        var showCapability by remember { mutableStateOf(com.cognex.realplay.engine.AppSettings.devOverlayEnabled.value) }
         var showCapabilityCard by remember { mutableStateOf(false) }
         var world by remember { mutableStateOf(WorldState.EMPTY) }
         var capReport by remember { mutableStateOf<SceneCapabilityReport?>(null) }
@@ -92,9 +92,10 @@ fun CalibrationScreen(onReady: () -> Unit, onBack: () -> Unit) {
                     obj.color?.let { append("  ${it.name.lowercase()}") }
                     if (obj.stable) append("  \u25CF")     // ● settled
                     if (obj.stale) append("  ~")           // coasting
-                    if (obj.ambiguous) append("  ?")       // ambiguous
                 },
-                color = colorForTag(obj.color)
+                // Ambiguous reads as an amber box instead of a "?" glued onto the label text —
+                // no extra glyph to collide with the label on small/dense boxes.
+                color = if (obj.ambiguous) AmbiguousBoxColor else colorForTag(obj.color)
             )
         }
 
@@ -109,7 +110,8 @@ fun CalibrationScreen(onReady: () -> Unit, onBack: () -> Unit) {
                 detections = overlayDetections
             )
 
-            // Top scrim + FPS readout — FPS + analysis geometry + object count + frame quality.
+            // Top scrim + readout — a friendly one-liner by default, raw FPS/geometry numbers only
+            // when the developer overlay is on (Settings → Developer).
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -117,16 +119,20 @@ fun CalibrationScreen(onReady: () -> Unit, onBack: () -> Unit) {
                     .background(Brush.verticalGradient(listOf(Color(0xCC000000), Color.Transparent)))
             )
             val info = analysisInfo
-            val readout = buildString {
-                append("FPS ")
-                append(String.format("%.1f", fps))
-                if (info != null) {
-                    append("   \u2022   ${info.imageW}\u00d7${info.imageH}")
+            val readout = if (showCapability) {
+                buildString {
+                    append("FPS ")
+                    append(String.format("%.1f", fps))
+                    if (info != null) {
+                        append("   \u2022   ${info.imageW}\u00d7${info.imageH}")
+                    }
+                    append("   \u2022   ${world.objects.size} obj")
+                    if (!world.quality.good) {
+                        append("   \u2022   ${world.quality.reason ?: "POOR"}")
+                    }
                 }
-                append("   \u2022   ${world.objects.size} obj")
-                if (!world.quality.good) {
-                    append("   \u2022   ${world.quality.reason ?: "POOR"}")
-                }
+            } else {
+                friendlyScanReadout(world)
             }
             Text(
                 text = readout,
@@ -172,7 +178,7 @@ fun CalibrationScreen(onReady: () -> Unit, onBack: () -> Unit) {
             ) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     RpChip("Calibration", showCalibration, Modifier.weight(1f)) { showCalibration = !showCalibration }
-                    RpChip("Capability", showCapability, Modifier.weight(1f)) { showCapability = !showCapability }
+                    RpChip("Details", showCapability, Modifier.weight(1f)) { showCapability = !showCapability }
                 }
                 Row(
                     modifier = Modifier
@@ -223,6 +229,16 @@ private fun capabilityCardContext(): com.cognex.realplay.challenge.GenerationCon
     )
 }
 
+/** A plain-language readiness line shown instead of raw FPS/geometry numbers (default view). */
+private fun friendlyScanReadout(world: WorldState): String = when {
+    world.objects.isEmpty() -> "Point the camera at your play area\u2026"
+    !world.quality.good -> "Having trouble seeing clearly \u2014 try more light or less clutter"
+    else -> {
+        val n = world.objects.size
+        "$n thing${if (n == 1) "" else "s"} spotted \u2014 looking good!"
+    }
+}
+
 /** Formats the live [SceneCapabilityReport] for the dev overlay (§S3.5.4). */
 private fun capabilityReadout(report: SceneCapabilityReport): String {
     val cap = report.capability
@@ -250,6 +266,8 @@ private fun capabilityReadout(report: SceneCapabilityReport): String {
 }
 
 /** Maps a [ColorTag] to a display colour for the detection box. */
+private val AmbiguousBoxColor = Color(0xFFFFB13A) // tangerine — "not sure yet", no glyph needed
+
 private fun colorForTag(tag: ColorTag?): Color = when (tag) {
     ColorTag.RED -> Color(0xFFF87171)
     ColorTag.ORANGE -> Color(0xFFFB923C)
