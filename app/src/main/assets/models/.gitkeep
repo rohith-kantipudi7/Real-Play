@@ -1,0 +1,2 @@
+# Tier-A model binaries land here at build time via `:app:fetchTierAModels`.
+# They are intentionally NOT committed to Git (see .gitignore §1.2).

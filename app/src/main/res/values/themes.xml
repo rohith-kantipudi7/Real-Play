@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Base theme. The Compose UI drives all visuals; this keeps the splash dark navy. -->
+    <style name="Theme.RealPlay" parent="android:Theme.Material.NoActionBar">
+        <item name="android:statusBarColor">@color/rp_navy</item>
+        <item name="android:navigationBarColor">@color/rp_navy</item>
+        <item name="android:windowBackground">@color/rp_navy</item>
+    </style>
+</resources>

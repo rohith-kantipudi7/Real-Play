@@ -1,0 +1,28 @@
+# ── Android / Gradle defaults ──
+*.iml
+.gradle/
+/local.properties
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+
+# Android Studio / IntelliJ
+.idea/
+*.hprof
+
+# Build outputs
+**/build/
+app/release/
+app/debug/
+
+# Keystores / secrets
+*.jks
+*.keystore
+
+# ── Model binaries — NEVER commit (Architecture §1.2) ──
+*.tflite
+*.task
+*.onnx
