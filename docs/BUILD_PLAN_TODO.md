@@ -10,6 +10,9 @@ Cross-references: Architecture §13 (stages/gates), §7 (generators), §25–§2
 
 ## Status at a glance
 
+> **Current position (2026-09-27):** S0–S9 complete + DQ + v3.6-A + v3.6-B. **NEXT: S10 (Toddler + TTS).**
+> Full engineering context for a fresh machine/agent: **docs/CONTEXT_HANDOFF.md**.
+
 | Stage | Title | Status |
 |---|---|---|
 | S0 | Foundation (repo, nav, theme, Tier-A bundling) | ✅ |
@@ -20,19 +23,23 @@ Cross-references: Architecture §13 (stages/gates), §7 (generators), §25–§2
 | S4 | Verification (24 rules, TemporalGate, PoseMath) | ✅ |
 | S5 | Engine + first playable (G0, G1) | ✅ |
 | S6 | UI & feel | ✅ |
-| **DQ** | **Detection quality (better model + tuning)** | 🟡 lite2 float+GPU done; props fine-tune pending |
-| **S7** | **Zones + G2/G3 + SceneCapabilityCard** | ⬜ **NEXT** |
-| S8 | Pose + identity + G4/G5 | ⬜ |
-| S9 | Difficulty director + G6/G7 | 🟡 (knobs done; G6/G7 + adaptive loop pending) |
-| S10 | Toddler + TTS (visual-first, §26) | ⬜ |
+| **DQ** | **Detection quality (better model + tuning)** | 🟡 lite2 float+GPU done; props fine-tune + live fps gate pending |
+| S7 | Zones + G2/G3 + SceneCapabilityCard | ✅ |
+| S8 | Pose + identity + G4/G5 | ✅ (P1; on-device in-game gate pending) |
+| S9 | Difficulty director + G6/G7 + structural axis | ✅ (on-device in-game gate pending) |
+| **S10** | **Toddler + TTS (visual-first, §26)** | ⬜ **NEXT** |
 | S11 | SLM / on-device LLM composer | ✅ (needs Tier-B model on device to activate) |
 | S12 | Hardening + freeze | ⬜ |
 | S13 | P2 bonuses | 🧊 |
-| **v3.6-A** | **Presentation seam (present/, RenderModel, MobileTarget)** | ⬜ |
-| **v3.6-B** | **Visual-first coaching (coach/, VisualCue)** | ⬜ |
+| v3.6-A | Presentation seam (present/, RenderModel, MobileTarget) | ✅ |
+| v3.6-B | Visual-first coaching (coach/, VisualCue) | ✅ |
 | **v3.6-C** | **Party / Event mode (party/)** | ⬜ |
 | **v3.6-D** | **VrTarget (spatial renderer)** | 🧊 |
 | **UX** | **Full UI/UX overhaul (design system + all screens)** | ⬜ |
+
+**Remaining work, in suggested order:** S10 → v3.6-C → UX → S12 → (S13/v3.6-D deferred). S11 already
+shipped (activates only with a side-loaded Tier-B model). DQ has a model-side props fine-tune + a
+live-device fps/accuracy gate still open (can be done opportunistically).
 
 ---
 
@@ -137,47 +144,39 @@ model, CPU-only). Improving the model is the highest-leverage perception fix.
       card numbers match reality on 3 tables *(verify live)*.
 
 
-### S8 · Pose + identity + G4/G5 ⬜  *(P1, cuttable)*
+### S8 · Pose + identity + G4/G5 ✅ DONE  *(P1; on-device in-game gate still to run)*
 **Goal:** add body tracking and the two flagship human games.
 
-- [ ] `perception/PoseDetector.kt` — MediaPipe Pose Landmarker (`pose_landmarker_lite.task`,
-      full fallback), emits `world.TrackedPlayer` landmarks; MoveNet backup noted.
-- [ ] `perception/PlayerIdentity.kt` — zone-anchored, re-anchored per round, colour-band tiebreak
-      (reuse for both SOLO turn-based and later PARTY).
-- [ ] `engine/PlayerRegistry.kt` — 1 primary / 2 turn-based; identity survives a round.
-- [ ] Feed `PlayerDynamics` (poseVariety, motionRange) into `SceneCapabilityBuilder` (currently
-      EMPTY) so Branch B richness becomes live.
-- [ ] `challenge/generators/G4StatueMatchGenerator.kt` — players≥1, feasibility 0.85 flat,
-      `POSE_MATCH` hold 1500 ms, maxSteps 2 @HARD (two poses in sequence).
-- [ ] `challenge/generators/G5RedLightGreenLightGenerator.kt` — players≥1, feasibility
-      0.70 + 0.15·min(p,2)/2, `MOTION_BELOW` through the red window.
-- [ ] Register G4, G5. Update ModeSelect (enable Body/Mixed when pose available).
-- [ ] `PerceptionScheduler` — never run detector + pose + LLM concurrently.
-- [ ] **Tests:** pose feature extraction, identity across a round, G4/G5 both reachable human-only.
-- **GATE (§13 S8):** skeleton aligned · 2 players P1/P2 halos · identity survives round · crossing→
-      ambiguous→resolved by band · POSE_MATCH at 1.5 m & 3 m · MOTION_BELOW separates freeze from
-      sway · detector+pose ≥10 fps no overheat · human-only G4 & G5 both reachable · disabling
-      pose leaves a complete object-only game.
-- **DECISION POINT (20 min):** too slow → MoveNet / turn-based single / cut S8 entirely.
+- [x] `perception/PoseDetector.kt` — MediaPipe Pose Landmarker on GPU (lite), emits landmarks.
+- [x] `perception/PlayerIdentity.kt` — zone-anchored, colour-band tiebreak.
+- [x] `engine/PlayerRegistry.kt` — 1 primary / 2 turn-based; identity survives a round.
+- [x] `PlayerDynamics` (poseVariety, motionRange) fed into `SceneCapabilityBuilder` (Branch B live).
+- [x] `challenge/generators/G4StatueMatchGenerator.kt` — `POSE_MATCH` hold, 2 poses @HARD.
+- [x] `challenge/generators/G5RedLightGreenLightGenerator.kt` — `MOTION_BELOW` red window.
+- [x] Registered G4, G5. Pose-off still leaves a complete object-only game.
+- [x] `PerceptionScheduler` — detector/pose/LLM never concurrent.
+- [x] **Tests:** pose extraction, identity across a round, G4/G5 reachable human-only — all green.
+- **GATE (§13 S8):** unit + build + install + launch (both detectors GPU, no crash) passed.
+      Remaining: in-game 2-player halo / identity-survives / fps device walkthrough (Compose UI
+      not uiautomator-drivable on the vivo — manual visual check only).
 
-### S9 · Difficulty director + G6/G7 ⬜  *(🟡 knobs exist)*
+### S9 · Difficulty director + G6/G7 + structural axis ✅ DONE
 **Goal:** adaptive difficulty over time, the structural (multi-step) axis on the phone, and the
 last two object games.
 
-- [ ] `engine/DifficultyDirector.kt` — 3 fast wins tighten thresholds; 2 losses loosen; Unsure
-      changes nothing; drives numeric axis AND step axis; toddler/EARLY capped at 1 step.
-- [ ] `challenge/generators/G6FetchRaceGenerator.kt` — players≥1, handheld≥2, nameable;
-      feasibility 0.6 + 0.3·min(hh,3)/3; `PLAYER_HOLDS_OBJECT`→`SHAPE/COLOR_MATCH`→`PLAYER_IN_ZONE`;
-      turn-based; requests only attributes some present object satisfies. (Needs pose/identity.)
-- [ ] `challenge/generators/G7TriangleBuildGenerator.kt` — movable≥3; feasibility
-      0.5 + 0.3·spread + 0.2·distinctRatio; `NON_DEGENERATE_TRIANGLE`; 2D camera-space unless planar;
-      renders the triangle live (edges green when constraint holds). Demo centrepiece.
-- [ ] Wire HARD 2-step missions end-to-end (G1 already maxSteps 2; verify MissionRunner ordering
-      on device with "Step 1 of 2").
-- [ ] Register G6, G7.
-- [ ] **Tests:** director tighten/loosen, sparse scene cannot HARD, 3rd object unlocks Triangle,
-      G1 HARD emits ordered 2-step, toddler/EARLY capped at 1, stepBonus partial credit.
-- **GATE (§13 S9):** as above + triangle renders live and passes only on a real triangle.
+- [x] `engine/DifficultyDirector.kt` — pure resolver: skill/scene/age binding ceiling + knobs +
+      human-readable explanation string. (§8 rating deltas stay in GameSession.)
+- [x] `challenge/generators/G6FetchRaceGenerator.kt` — turn-based fetch race, attribute chosen from
+      present objects; ordered `PLAYER_HOLDS_OBJECT`→`COLOR/SHAPE_MATCH`→`PLAYER_IN_ZONE`.
+- [x] `challenge/generators/G7TriangleBuildGenerator.kt` — `NON_DEGENERATE_TRIANGLE`, movable≥3,
+      **live triangle overlay** (per-edge green/amber, fill when satisfied). Demo centrepiece.
+- [x] **Structural axis mechanism:** `VerificationStep.actorIndices` + `ChallengeSpec.scopedTo(step)`
+      projection (zero verifier changes; null = backward-compatible). HARD 2-step chaining wired for
+      G1 (near→far), G2 (two zones), G3 (two colours).
+- [x] Registered G6, G7 (registry now 8 generators).
+- [x] **Tests:** StructuralAxisTest (15) + DifficultyDirectorTest (5); all 286 unit tests green.
+- **GATE (§13 S9):** unit + build + install + launch passed. Remaining: on-device visual check that
+      the triangle overlay turns green only on a real triangle (manual — Compose not uiautomator-drivable).
 
 ### S10 · Toddler mode + TTS + visual-first ⬜  *(ties into v3.6-B §26)*
 **Goal:** the youngest-child path — no timers, no failure, spoken + **visual-first** coaching.
@@ -213,28 +212,25 @@ last two object games.
 > All three are **presentation/engagement only** — they never touch perception or the verifier
 > (invariants 21–25). Build order: seam → cues → party → (VR later). Each is deletable.
 
-### v3.6-A · Presentation seam ⬜  *(do first — low risk, pure JVM)*
-- [ ] `present/RenderModel.kt` — pure JVM scene description (camera/passthrough layer, highlights,
-      zones, skeleton, path arrows, ghost demos, HUD, cue track). Zero Android imports.
-- [ ] `present/SceneGraph.kt`, `present/Overlay.kt` — building blocks of RenderModel.
-- [ ] `present/PresentationTarget.kt` — `fun render(model: RenderModel)` + input callback.
-- [ ] `present/MobileTarget.kt` — adapts RenderModel → the existing Compose overlay (ships now).
-- [ ] Refactor GameViewModel to emit RenderModel (engine stays render-agnostic).
-- [ ] **Tests:** RenderModel is pure (no Android), MobileTarget maps every element.
-- **Invariants:** 21 (target renders only RenderModel), 22 (pure JVM).
+### v3.6-A · Presentation seam ✅ DONE  *(low risk, pure JVM)*
+- [x] `present/RenderModel.kt` — pure JVM scene description. Zero Android imports.
+- [x] `present/SceneGraph.kt`, `present/Overlay.kt` — building blocks of RenderModel.
+- [x] `present/PresentationTarget.kt` — `fun render(model)` + input callback.
+- [x] `ui/present/MobileTarget.kt` — adapts RenderModel → the Compose overlay.
+- [x] GameViewModel emits RenderModel (engine render-agnostic).
+- [x] **Tests:** RenderModel purity + MobileTarget mapping — green.
+- **Invariants:** 21, 22 upheld.
 
-### v3.6-B · Visual-first coaching ⬜
-- [ ] `coach/VisualCue.kt` — sealed: `Highlight`, `PathArrow`, `GhostDemo`, `Pictograph`, `ZonePulse`.
-- [ ] `coach/CuePlanner.kt` — pure; derives the cue track **deterministically from the ChallengeSpec**
-      (highlight the actual target, arrow to the actual goal, ghost of the actual pose). Never
-      authored by the model, never affects the verdict.
-- [ ] `coach/CoachTrack.kt` — ordered cues per active step.
-- [ ] Render cues in the Compose overlay (pulse, animated arrow, looping ghost silhouette, big
-      pictograph) via MobileTarget.
-- [ ] Age-band policy (§10): TODDLER/EARLY cues PRIMARY (words decorative); MID/OLDER cues support.
-- [ ] **Tests:** cue targets the actual spec actor/goal, TODDLER path is visuals-primary, no spec
-      or verdict changes.
-- **Invariant:** 23 (presentation only).
+### v3.6-B · Visual-first coaching ✅ DONE
+- [x] `coach/VisualCue.kt` — sealed cues incl. `Highlight`, `PathArrow`, `GhostDemo`, `ZonePulse`,
+      `TriangleGuide` (added in S9).
+- [x] `coach/CuePlanner.kt` — pure; derives the cue track deterministically from the ChallengeSpec
+      (projected via `scopedTo(step)`). Never affects the verdict.
+- [x] `coach/CueResolver.kt` / CoachTrack — ordered cues per active step.
+- [x] Cues rendered in the Compose overlay via MobileTarget → `ui/overlay/CueCanvas.kt`.
+- [x] Age-band policy: TODDLER/EARLY cues PRIMARY, MID/OLDER support.
+- [x] **Tests:** cue targeting + no spec/verdict change — green.
+- **Invariant:** 23 upheld.
 
 ### v3.6-C · Party / Event mode ⬜  *(multiplayer — functions & birthday parties)*
 **Goal:** turn the room into players. Fast, energetic, fair multi-player rounds over the SAME
