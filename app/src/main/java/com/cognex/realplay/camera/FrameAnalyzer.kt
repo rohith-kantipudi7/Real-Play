@@ -1,5 +1,6 @@
 package com.cognex.realplay.camera
 
+import android.graphics.Bitmap
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
 import com.cognex.realplay.util.RpLog
@@ -14,16 +15,30 @@ data class AnalysisInfo(
     val rotationDegrees: Int
 )
 
+/** A decoded RGBA frame handed to downstream perception. [bitmap] is reused — copy if retained. */
+data class CameraFrame(
+    val bitmap: Bitmap,
+    val rotationDegrees: Int,
+    val timestampMs: Long
+)
+
 /**
- * The CameraX analyzer. In S1 it only measures throughput (a rolling 30-frame FPS) and publishes
- * the frame geometry for [CoordinateMapper]. Later stages plug detection into [onFrame].
+ * The CameraX analyzer. Measures a rolling 30-frame FPS, publishes the frame geometry for
+ * [CoordinateMapper], and — when [frameSink] is set — decodes each RGBA frame into a reused
+ * [Bitmap] and forwards it for detection (S2+).
  *
  * (Android note: [ImageProxy] is a single camera frame; it MUST be closed or the pipeline stalls
  * after a few frames — hence the `finally` block.)
  *
  * Threading contract (§3.3): this runs on a single-thread executor and must NEVER suspend.
+ * [frameSink] is invoked on that same analyzer thread and must return quickly (MediaPipe's
+ * detectAsync is non-blocking, so it satisfies this).
  */
 class FrameAnalyzer : ImageAnalysis.Analyzer {
+
+    /** Set by the perception pipeline to receive decoded frames. Null = FPS-only (S1 behaviour). */
+    @Volatile
+    var frameSink: ((CameraFrame) -> Unit)? = null
 
     private val _fps = MutableStateFlow(0f)
     val fps: StateFlow<Float> = _fps.asStateFlow()
@@ -35,6 +50,10 @@ class FrameAnalyzer : ImageAnalysis.Analyzer {
     private val frameTimestampsNs = LongArray(WINDOW)
     private var writeIndex = 0
     private var filled = 0
+    private var framesSinceLog = 0
+
+    private var reusableBitmap: Bitmap? = null
+    private var lastMonotonicMs = 0L
 
     override fun analyze(imageProxy: ImageProxy) {
         try {
@@ -44,12 +63,54 @@ class FrameAnalyzer : ImageAnalysis.Analyzer {
                 rotationDegrees = imageProxy.imageInfo.rotationDegrees
             )
             recordFrameForFps()
-            // S2+ will run detection here; S1 does nothing else with the pixels.
+
+            val sink = frameSink
+            if (sink != null) {
+                val bitmap = decodeRgba(imageProxy)
+                if (bitmap != null) {
+                    sink(
+                        CameraFrame(
+                            bitmap = bitmap,
+                            rotationDegrees = imageProxy.imageInfo.rotationDegrees,
+                            timestampMs = nextMonotonicMs()
+                        )
+                    )
+                }
+            }
         } catch (t: Throwable) {
             RpLog.e(RpLog.Tag.CAMERA, "Analyzer frame failed", t)
         } finally {
             imageProxy.close()
         }
+    }
+
+    /**
+     * Decodes an RGBA_8888 [ImageProxy] into a reused [Bitmap]. The single plane may have row
+     * padding, so the bitmap is allocated to the padded width; consumers treat the first
+     * [ImageProxy.getWidth] columns as valid pixels.
+     */
+    private fun decodeRgba(imageProxy: ImageProxy): Bitmap? {
+        val plane = imageProxy.planes.firstOrNull() ?: return null
+        val pixelStride = plane.pixelStride
+        val rowStride = plane.rowStride
+        val paddedWidth = if (pixelStride > 0) rowStride / pixelStride else imageProxy.width
+        val height = imageProxy.height
+
+        var bmp = reusableBitmap
+        if (bmp == null || bmp.width != paddedWidth || bmp.height != height) {
+            bmp = Bitmap.createBitmap(paddedWidth, height, Bitmap.Config.ARGB_8888)
+            reusableBitmap = bmp
+        }
+        plane.buffer.rewind()
+        bmp.copyPixelsFromBuffer(plane.buffer)
+        return bmp
+    }
+
+    private fun nextMonotonicMs(): Long {
+        val now = System.nanoTime() / 1_000_000L
+        val ms = if (now <= lastMonotonicMs) lastMonotonicMs + 1 else now
+        lastMonotonicMs = ms
+        return ms
     }
 
     private fun recordFrameForFps() {
@@ -73,8 +134,6 @@ class FrameAnalyzer : ImageAnalysis.Analyzer {
             RpLog.i(RpLog.Tag.CAMERA, "Analyzer FPS ~${"%.1f".format(_fps.value)}")
         }
     }
-
-    private var framesSinceLog = 0
 
     companion object {
         private const val WINDOW = 30

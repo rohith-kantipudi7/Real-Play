@@ -77,6 +77,9 @@ dependencies {
     implementation(libs.androidx.camera.lifecycle)
     implementation(libs.androidx.camera.view)
 
+    // MediaPipe object detection (S2)
+    implementation(libs.mediapipe.tasks.vision)
+
     // Test
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
