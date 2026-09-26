@@ -64,22 +64,23 @@ fun SettingsScreen(
         }
 
         Spacer(Modifier.height(RpSpace.xl))
-        SectionLabel("AI composer (on-device)")
+        SectionLabel("AI composer")
         Spacer(Modifier.height(8.dp))
         RpCard(modifier = Modifier.fillMaxWidth()) {
             SectionBody {
                 val aiComposer by AppSettings.aiComposerEnabled.collectAsState()
                 ToggleRow(
-                    label = "Use Gemma to compose games",
+                    label = "Use AI to compose games",
                     checked = aiComposer,
                     onCheckedChange = AppSettings::setAiComposerEnabled,
                     divider = false
                 )
                 Text(
-                    text = "Runs fully offline on this phone. Needs the side-loaded Gemma model in " +
-                        "/sdcard/realplay/models. When off — or the model is absent — the game uses the " +
-                        "built-in composer. The AI only arranges verifiable skills and wording; it never " +
-                        "decides pass or fail.",
+                    text = "Tries a cloud model first (if configured), then the side-loaded on-device " +
+                        "Gemma model, then falls back to the built-in composer — always the same offline " +
+                        "fallback if neither is available or reachable. The AI only arranges verifiable " +
+                        "skills and wording; it never decides pass or fail, and the game is fully " +
+                        "playable offline with this switched off.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 4.dp)

@@ -3,8 +3,12 @@
 
     <uses-feature android:name="android.hardware.camera.any" android:required="true" />
     <uses-permission android:name="android.permission.CAMERA" />
-    <!-- RealPlay is offline-first: perception, the game engine and the optional on-device Gemma
-         composer all run locally. No INTERNET permission is required or requested. -->
+    <!-- RealPlay is offline-first: perception, the game engine and verification never need the
+         network. v3.7 adds an OPTIONAL cloud composer (Architecture §6.5 extension) that only
+         proposes wording/skill-arrangement over the composition line, gated by a Settings toggle
+         and cloud config; with it off (or absent), the app is fully playable offline — the AI-OFF
+         gate still passes with the network pulled. -->
+    <uses-permission android:name="android.permission.INTERNET" />
 
     <application
         android:allowBackup="true"
@@ -12,6 +16,7 @@
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
+        android:usesCleartextTraffic="false"
         android:theme="@style/Theme.RealPlay">
 
         <activity

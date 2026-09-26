@@ -120,4 +120,24 @@ class ChallengeComposerTest {
         assertEquals(false, MockModel().isAvailable)
         assertEquals(null, MockModel().propose("anything"))
     }
+
+    @Test fun repeated_same_scene_uses_cache_not_a_second_model_call() = runBlocking {
+        var calls = 0
+        val countingModel = object : LanguageModel {
+            override val name = "counting"
+            override val isAvailable = true
+            override suspend fun propose(prompt: String): String? {
+                calls++
+                return """{"generatorId":"G1","instruction":"Push them together!"}"""
+            }
+        }
+        val (w, c, ctx) = scene()
+        val det = registry.select(w, c, ctx, SelectionMode.RECOMMENDED)
+        val composer = ChallengeComposer(registry, countingModel, enabled = { true })
+
+        composer.compose(w, c, ctx, det)
+        composer.compose(w, c, ctx, det)
+
+        assertEquals(1, calls)
+    }
 }

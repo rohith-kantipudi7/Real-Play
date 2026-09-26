@@ -11,8 +11,9 @@ Cross-references: Architecture §13 (stages/gates), §7 (generators), §25–§2
 ## Status at a glance
 
 > **Current position (2026-09-27):** S0–S10 complete + DQ + v3.6-A + v3.6-B + v3.6-C + UX design
-> system pass (all core screens incl. Calibration/Game) + a VR concept preview (v3.6-D). **NEXT:
-> S12 hardening/freeze, then P2/real VR headset renderer if time remains.**
+> system pass (all core screens incl. Calibration/Game) + a VR concept preview (v3.6-D) + v3.7
+> hybrid cloud/on-device composer (cloud → Gemma → deterministic, cache-assisted). **NEXT:**
+> **S12 hardening/freeze, then P2/real VR headset renderer if time remains.**
 > Full engineering context for a fresh machine/agent: **docs/CONTEXT_HANDOFF.md**.
 
 | Stage | Title | Status |
@@ -38,6 +39,7 @@ Cross-references: Architecture §13 (stages/gates), §7 (generators), §25–§2
 | v3.6-C | Party / Event mode (party/) | ✅ (device manual gate pending; TODDLER removed from PARTY) |
 | **v3.6-D** | **VrTarget (spatial renderer)** | 🟡 concept preview shipped; real headset renderer still 🧊 |
 | **UX** | **Full UI/UX overhaul (design system + all screens)** | 🟡 all core screens done; Toddler skin variant pending |
+| **v3.7** | **Hybrid cloud + on-device composer (Azure AI Foundry → Gemma → deterministic)** | ✅ implemented; cloud path untested against a live endpoint by the agent (security hold) |
 
 **Remaining work, in suggested order:** S12 → (S13 / real VR headset renderer deferred).
 S11 already shipped (activates only with a side-loaded Tier-B model). DQ has a model-side props
@@ -92,6 +94,54 @@ detector removed. Success feedback <200 ms.
 ChallengeComposer (deterministic fallback on any failure). Wired into GameViewModel speculatively.
 25 AI/detection tests green. **AI-OFF gate proven.** Activates only when a Tier-B `.task` is on
 the phone (see docs/MODELS.md).
+
+### v3.7 · Hybrid cloud + on-device challenge composer ✅  *(spec extension — §2/§6.5, invariants 18–20 preserved)*
+**Goal:** add an optional CLOUD proposal source (Azure AI Foundry, GPT-5.5) ABOVE the existing
+on-device Gemma model, as the first link in the same fallback chain — never a replacement for the
+deterministic composer, never a new trust boundary (still validator-gated, still only rewords /
+arranges REGISTERED skills, AI-OFF gate still passes fully offline).
+
+- [x] `ai/AzureChatRequest.kt` (pure JVM) — builds the completions URL (override or
+      endpoint+deployment+api-version), the request body (JSON-schema structured output
+      constrained to `{generatorId, instruction, hints}`, no free-form prose), and extracts
+      `choices[0].message.content` from the response. Dependency-free (hand-built/parsed JSON,
+      mirrors `SchemaValidator`'s convention) so it runs in local JVM unit tests untouched.
+- [x] `ai/CloudModel.kt` — a `LanguageModel` over `HttpURLConnection`, IO dispatcher, ~2 s hard
+      timeout, sends ONLY the text scene digest (`PromptBuilder`'s prompt — object labels,
+      colours, counts), **never a camera frame**. Any timeout/network/HTTP error returns null and
+      falls straight through — zero user-visible difference from cloud being absent.
+- [x] `ai/CompositeModel.kt` — chain-of-responsibility `LanguageModel` wrapping
+      `[CloudModel, GemmaModel]`; tries each in order, returns the first non-null proposal;
+      `isAvailable` true if any child is available. `ChallengeComposer` needed ZERO changes to
+      accommodate this — it already only knows about the `LanguageModel` interface.
+- [x] `ai/ComposerCache.kt` — a small bounded (32-entry, LRU-ish) cache keyed by
+      `ComposerCacheKey(generatorId, capabilityDigest, tier)`, plus a pure `capabilityDigest(cap)`
+      fingerprint (counts + sorted colours + track-only flag). `ChallengeComposer.compose()` checks
+      the cache before calling `model.propose(...)` and stores the raw text after a successful
+      `Accepted` validation — an unchanged scene skips a second cloud/on-device call entirely.
+- [x] `AiRuntime.init` now builds `CompositeModel(listOf(CloudModel(BuildConfig.AZURE_*), GemmaModel(...)))`.
+- [x] `app/build.gradle.kts` — `buildConfig = true` + `BuildConfig.AZURE_ENDPOINT/API_KEY/DEPLOYMENT/
+      API_VERSION/CHAT_COMPLETIONS_URL` read from **`local.properties`** (gitignored, never
+      committed) — mirrors the existing `realplay.models.dir` pattern in the same file.
+- [x] `AndroidManifest.xml` — added `INTERNET` permission (commented: optional cloud path only,
+      app stays offline-first) + `android:usesCleartextTraffic="false"` (HTTPS-only at the OS
+      level, defence-in-depth even though the code only ever builds `https://` URLs).
+- [x] `SettingsScreen.kt` — toggle label/explainer updated to describe the cloud → on-device →
+      deterministic chain and reconfirm full offline playability with the switch off.
+- [x] **Tests (all green):** `AzureChatRequestTest` (URL construction incl. override, body
+      contains prompt + schema, escaping, content extraction incl. garbage input),
+      `CompositeModelTest` (order-of-trial fallback, skips unavailable children, `isAvailable`
+      aggregation, all-null → null), `ComposerCacheTest` (get/put/eviction,
+      `capabilityDigest` stability/sensitivity), plus a new `ChallengeComposerTest` case proving a
+      repeated identical scene calls the model only once (cache hit on the second call).
+      342/342 total unit tests green; `assembleDebug` + install + launch smoke-tested on device.
+- [ ] **NOT done by the agent, intentionally:** a live call against the real Azure endpoint. The
+      user-supplied endpoint didn't match the standard `https://{resource}.openai.azure.com` shape
+      (looked like a `projects/proj-default`-style AI Foundry URL), so the exact REST path is
+      unverified — `realplay.azure.chatCompletionsUrl` in `local.properties` is available as a
+      manual override once the user verifies the correct path themselves. **The user must also
+      rotate the Azure key that was pasted in plaintext chat during this session** — see
+      `/memories/repo/realplay.md` for the full note.
 
 ---
 

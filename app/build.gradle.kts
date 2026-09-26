@@ -20,6 +20,21 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // Model assets must not be compressed so they can be memory-mapped at runtime.
+
+        // v3.7 cloud composer config (Architecture §6.5 extension) — read from LOCAL, uncommitted
+        // local.properties, never hard-coded. Empty defaults keep the build green on a machine with
+        // no cloud config: CloudModel.isAvailable is simply false and the deterministic/on-device
+        // chain is used (the AI-OFF gate).
+        val localProps = Properties().apply {
+            val f = rootProject.file("local.properties")
+            if (f.exists()) f.inputStream().use { load(it) }
+        }
+        fun azureProp(key: String): String = localProps.getProperty(key, "")
+        buildConfigField("String", "AZURE_ENDPOINT", "\"${azureProp("realplay.azure.endpoint")}\"")
+        buildConfigField("String", "AZURE_API_KEY", "\"${azureProp("realplay.azure.apiKey")}\"")
+        buildConfigField("String", "AZURE_DEPLOYMENT", "\"${azureProp("realplay.azure.deployment")}\"")
+        buildConfigField("String", "AZURE_API_VERSION", "\"${azureProp("realplay.azure.apiVersion").ifBlank { "2024-08-01-preview" }}\"")
+        buildConfigField("String", "AZURE_CHAT_COMPLETIONS_URL", "\"${azureProp("realplay.azure.chatCompletionsUrl")}\"")
     }
 
     androidResources {
@@ -47,6 +62,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     // world/, challenge/, verify/ are pure JVM — unit tests run on the local JVM.

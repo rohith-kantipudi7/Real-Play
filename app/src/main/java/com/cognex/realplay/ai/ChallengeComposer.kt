@@ -26,7 +26,8 @@ import com.cognex.realplay.world.WorldState
 class ChallengeComposer(
     private val registry: ChallengeRegistry,
     private val model: LanguageModel = MockModel(),
-    private val enabled: () -> Boolean = { AppSettings.aiComposerEnabled.value }
+    private val enabled: () -> Boolean = { AppSettings.aiComposerEnabled.value },
+    private val cache: ComposerCache = ComposerCache()
 ) {
 
     /** True when a real proposal could be produced (gate + availability). Cheap, non-suspending. */
@@ -49,13 +50,20 @@ class ChallengeComposer(
         val feasibleIds = bundle.skills.mapTo(HashSet()) { it.generatorId }
         if (feasibleIds.isEmpty()) return deterministic
 
-        val raw = model.propose(bundle.prompt)
+        // Cache keyed by (skill, scene, tier) — a repeated scene skips the network/on-device call
+        // entirely (§6.5 v3.7). The key names the DETERMINISTIC winner, not whatever the model
+        // eventually picks, since that's the only thing known before the call.
+        val cacheKey = ComposerCacheKey(deterministic.winnerId, capabilityDigest(cap), ctx.effectiveTier.name)
+        val raw = cache.get(cacheKey) ?: model.propose(bundle.prompt)
         return when (val r = SchemaValidator.validate(raw, feasibleIds)) {
             is SchemaValidator.Result.Rejected -> {
                 RpLog.i(RpLog.Tag.AI, "proposal rejected (${r.reason}) — using deterministic ${deterministic.winnerId}")
                 deterministic
             }
-            is SchemaValidator.Result.Accepted -> apply(world, cap, ctx, deterministic, r.proposal)
+            is SchemaValidator.Result.Accepted -> {
+                if (raw != null) cache.put(cacheKey, raw)
+                apply(world, cap, ctx, deterministic, r.proposal)
+            }
         }
     }
 
