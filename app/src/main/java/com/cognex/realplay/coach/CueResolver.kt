@@ -48,6 +48,14 @@ object CueResolver {
             is VisualCue.Pictograph -> Overlay.Pictograph(PICTOGRAPH_BOX, glyphFor(cue.symbol))
 
             is VisualCue.GhostDemo -> Overlay.Ghost(GHOST_BOX, cue.kind.name)
+
+            is VisualCue.TriangleGuide -> Overlay.TriangleGuide(
+                corners = cue.corners,
+                edgesOk = cue.edgesOk,
+                satisfied = cue.satisfied,
+                area = cue.area,
+                minAngleDeg = cue.minAngleDeg
+            )
         }
     }
 

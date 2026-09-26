@@ -9,7 +9,6 @@ import com.cognex.realplay.challenge.AgeBand
 import com.cognex.realplay.challenge.ChallengeRegistry
 import com.cognex.realplay.challenge.ChallengeSpec
 import com.cognex.realplay.challenge.Difficulty
-import com.cognex.realplay.challenge.DifficultyKnobs
 import com.cognex.realplay.challenge.GenerationContext
 import com.cognex.realplay.challenge.SelectionMode
 import com.cognex.realplay.challenge.SelectionResult
@@ -86,6 +85,9 @@ class GameViewModel(
     private var challengeIndex = 0
     private var bestStreak = 0
     private var sessionOver = false
+
+    /** The latest difficulty "why" string (§8, §13 S9), surfaced to the dev overlay via GameUiState. */
+    private var difficultyExplanation = ""
 
     /** True once the player has made real progress on the current mission (a gate has samples). */
     private var started = false
@@ -220,12 +222,19 @@ class GameViewModel(
 
     /** Resolves the difficulty context WITHOUT mutating session state (safe to call every frame). */
     private fun buildContext(cap: SceneCapability): GenerationContext {
-        val effectiveTier = Difficulty.effectiveTier(session.rating, cap.richness, ageBand, session.previousTier)
-        val knobs = DifficultyKnobs.forTier(effectiveTier, cap.spread, cap.stability)
+        val resolution = DifficultyDirector.resolve(
+            rating = session.rating,
+            richness = cap.richness,
+            band = ageBand,
+            spread = cap.spread,
+            stability = cap.stability,
+            previousTier = session.previousTier
+        )
+        difficultyExplanation = resolution.explanation
         return GenerationContext(
             ageBand = ageBand,
-            effectiveTier = effectiveTier,
-            knobs = knobs,
+            effectiveTier = resolution.effectiveTier,
+            knobs = resolution.knobs,
             trackOnlyMode = cap.trackOnlyMode,
             recentTypes = session.recentTypes,
             seed = seedCounter++
@@ -312,6 +321,7 @@ class GameViewModel(
         sm.transition(GameState.INSTRUCTION)
         sm.transition(GameState.PLAYING)
         RpLog.i(RpLog.Tag.ENGINE, "Selected ${result.winnerId} (${result.spec.type}) tier=${ctx.effectiveTier} budget=${result.stepBudget}")
+        RpLog.i(RpLog.Tag.ENGINE, "Difficulty: $difficultyExplanation")
         logRankedCandidates(result)
         publishPlaying(result.spec, firstTick(result.spec), 0L)
         requestComposeIfNeeded(world, cap, ctx, result)
@@ -470,7 +480,8 @@ class GameViewModel(
             retriesLeft = retriesLeft,
             winnerId = selection?.winnerId ?: "",
             winnerType = spec.type.name,
-            ranked = selection?.ranked ?: emptyList()
+            ranked = selection?.ranked ?: emptyList(),
+            difficultyExplanation = difficultyExplanation
         )
     }
 

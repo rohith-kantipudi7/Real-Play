@@ -163,6 +163,19 @@ fun GameScreen(onFinish: () -> Unit, onBack: () -> Unit) {
 
             GamePlayColumn(hud = model.hud, modifier = Modifier.align(Alignment.Center))
 
+            // Dev overlay (§13 S9): the difficulty "why" line — a one-glance answer to "what does
+            // hard actually look like?". Reads GameUiState directly; presentation only.
+            if (ui.difficultyExplanation.isNotEmpty()) {
+                Text(
+                    text = "${ui.winnerId} · ${ui.difficultyExplanation}",
+                    color = Color(0xCCFFFFFF),
+                    style = MaterialTheme.typography.labelSmall,
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(start = 12.dp, top = 96.dp)
+                )
+            }
+
             // Coaching toast sits just above the controls.
             CoachingToast(
                 hint = model.hud.coachingHint,

@@ -33,9 +33,8 @@ import com.cognex.realplay.world.ZoneSource
  *   (b) prefer a detected zone over an object-container when both exist, and never target an object
  *       (or zone) the subject is already inside.
  *
- * maxStepsForTier returns 2 at HARD (the chained "two objects into two zones" form arrives in S9);
- * generate() emits only the single-step form for now but respects [stepBudget] by never exceeding
- * it — exactly as G1 does.
+ * maxStepsForTier returns 2 at HARD; the chained "two objects into two zones, in order" form is
+ * emitted when the budget is 2 and a distinct second zone + object exist (§8.1b, §7.1).
  */
 class G2DropZoneGenerator : ChallengeGenerator {
 
@@ -70,6 +69,44 @@ class G2DropZoneGenerator : ChallengeGenerator {
             // Never target a subject already inside the zone.
             val subject = pool.firstOrNull { !SpatialRelations.pointInPolygon(it.center, zone.polygon) }
                 ?: pool.first()
+
+            // STRUCTURAL axis (§8.1b, §7.1): at HARD with a 2-step budget, chain a second object into
+            // a second zone, in order. Both steps are POINT_IN_ZONE but each acts on its OWN
+            // (object, zone) pair via actorIndices. Falls back to the single drop when the budget is 1
+            // or the scene lacks a distinct second zone + object.
+            val secondZone = pickSecondZone(world.zones, zone)
+            val secondSubject = pool.firstOrNull {
+                it.trackId != subject.trackId && secondZone != null &&
+                    !SpatialRelations.pointInPolygon(it.center, secondZone.polygon)
+            }
+            if (stepBudget >= 2 && secondZone != null && secondSubject != null) {
+                val name1 = phrase(subject, affById[subject.trackId], ctx.trackOnlyMode)
+                val name2 = phrase(secondSubject, affById[secondSubject.trackId], ctx.trackOnlyMode)
+                return ChallengeSpec(
+                    id = "G2-${subject.trackId}-Z${zone.zoneId}-${secondSubject.trackId}-Z${secondZone.zoneId}",
+                    type = type,
+                    tier = ctx.effectiveTier,
+                    ageBand = ctx.ageBand,
+                    actors = listOf(
+                        ActorRef.ByTrackId(subject.trackId),
+                        ActorRef.ByZone(zone.zoneId),
+                        ActorRef.ByTrackId(secondSubject.trackId),
+                        ActorRef.ByZone(secondZone.zoneId)
+                    ),
+                    instruction = "Put $name1 into ${zoneName(zone)}, then put $name2 into ${zoneName(secondZone)}.",
+                    steps = listOf(
+                        VerificationStep(RuleId.POINT_IN_ZONE, emptyMap(), ctx.knobs.holdMs, actorIndices = listOf(0, 1)),
+                        VerificationStep(
+                            RuleId.POINT_IN_ZONE, emptyMap(), ctx.knobs.holdMs,
+                            mustFollowPreviousStep = true, actorIndices = listOf(2, 3)
+                        )
+                    ),
+                    timeLimitMs = ctx.knobs.timeLimitMs,
+                    baseScore = 40,
+                    hints = listOf("Drop the first one in", "Now the second into its area")
+                )
+            }
+
             val name = phrase(subject, affById[subject.trackId], ctx.trackOnlyMode)
             return ChallengeSpec(
                 id = "G2-${subject.trackId}-Z${zone.zoneId}",
@@ -132,6 +169,12 @@ class G2DropZoneGenerator : ChallengeGenerator {
     /** The best target zone: a DETECTED one first, else any zone. Null when there are none. */
     private fun pickZone(zones: List<Zone>): Zone? =
         zones.sortedByDescending { it.source == ZoneSource.DETECTED }.firstOrNull()
+
+    /** A second, distinct target zone for the chained HARD form (§8.1b). Null when only one exists. */
+    private fun pickSecondZone(zones: List<Zone>, first: Zone): Zone? =
+        zones.filter { it.zoneId != first.zoneId }
+            .sortedByDescending { it.source == ZoneSource.DETECTED }
+            .firstOrNull()
 
     /**
      * Chooses (subject, container) with subject.trackId != container.trackId (guard a) and where the

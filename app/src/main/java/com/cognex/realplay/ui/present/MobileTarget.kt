@@ -70,6 +70,12 @@ object MobileTarget {
             is Overlay.Ghost -> OverlayCue.GhostBox(
                 left = c.box.left, top = c.box.top, right = c.box.right, bottom = c.box.bottom
             )
+            is Overlay.TriangleGuide -> OverlayCue.Triangle(
+                corners = c.corners.map { it.x to it.y },
+                edgesOk = c.edgesOk,
+                satisfied = c.satisfied,
+                label = "area ${"%.3f".format(c.area)}  ∠ ${"%.0f".format(c.minAngleDeg)}°"
+            )
             is Overlay.Skeleton -> null
             is Overlay.PlayerHalo -> null
         }

@@ -33,6 +33,8 @@ data class GameUiState(
     val winnerId: String,
     val winnerType: String,
     val ranked: List<RankedCandidate>,
+    /** Presentable difficulty "why" for the dev overlay (§8, §13 S9), e.g. "skill=HARD but richness 0.41 → playing MEDIUM". */
+    val difficultyExplanation: String,
     val sessionOver: Boolean
 ) {
     companion object {
@@ -56,6 +58,7 @@ data class GameUiState(
             winnerId = "",
             winnerType = "",
             ranked = emptyList(),
+            difficultyExplanation = "",
             sessionOver = false
         )
     }

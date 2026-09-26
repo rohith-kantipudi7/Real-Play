@@ -1,6 +1,7 @@
 package com.cognex.realplay.engine
 
 import com.cognex.realplay.challenge.ChallengeSpec
+import com.cognex.realplay.challenge.scopedTo
 import com.cognex.realplay.verify.TemporalGate
 import com.cognex.realplay.verify.VerificationBaseline
 import com.cognex.realplay.verify.VerificationOutcome
@@ -66,7 +67,7 @@ class MissionRunner(
 
         val idx = currentStepIndex
         val step = spec.steps[idx]
-        val eval = registry.evaluate(step, spec, world, baselineProvider(idx))
+        val eval = registry.evaluate(step, spec.scopedTo(step), world, baselineProvider(idx))
         val gate = gates[idx]
         gate.record(eval, timestampMs)
 

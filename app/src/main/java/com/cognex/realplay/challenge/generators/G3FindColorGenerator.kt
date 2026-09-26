@@ -28,8 +28,8 @@ import kotlin.math.min
  * component of §7's `OBJECT_PRESENT (area ≥4%)` is folded into selection: a prominent object of the
  * target colour is preferred so the child genuinely has to present it.
  *
- * maxStepsForTier returns 2 at HARD (the chained "…then something blue" form arrives in S9);
- * generate() emits the single-step form for now but respects [stepBudget], exactly as G1/G2 do.
+ * maxStepsForTier returns 2 at HARD; the chained "…then something blue" form is emitted when the
+ * budget is 2 and a distinct second-coloured object exists (§8.1b, §7.1).
  */
 class G3FindColorGenerator : ChallengeGenerator {
 
@@ -75,6 +75,42 @@ class G3FindColorGenerator : ChallengeGenerator {
             ?: world.objects.first()
 
         val color = target.color ?: ColorTag.UNKNOWN
+
+        // STRUCTURAL axis (§8.1b, §7.1): at HARD with a 2-step budget, chain a second colour —
+        // "Show me something red, then something blue." The second object wears a DIFFERENT colour and
+        // is referenced via actorIndices so its COLOR_MATCH judges the right object. Falls back to the
+        // single-colour form when the budget is 1 or no distinct-coloured second object exists.
+        val second = candidates.firstOrNull { it.trackId != target.trackId && it.color != color && it.color != ColorTag.UNKNOWN }
+        if (stepBudget >= 2 && second != null) {
+            val secondColor = second.color ?: ColorTag.UNKNOWN
+            return ChallengeSpec(
+                id = "G3-${target.trackId}-${color.name}-${second.trackId}-${secondColor.name}",
+                type = type,
+                tier = ctx.effectiveTier,
+                ageBand = ctx.ageBand,
+                actors = listOf(ActorRef.ByTrackId(target.trackId), ActorRef.ByTrackId(second.trackId)),
+                instruction = "Show me something ${colorWord(color)}, then something ${colorWord(secondColor)}.",
+                steps = listOf(
+                    VerificationStep(
+                        rule = RuleId.COLOR_MATCH,
+                        params = mapOf("color" to color.ordinal.toFloat()),
+                        holdMs = ctx.knobs.holdMs,
+                        actorIndices = listOf(0)
+                    ),
+                    VerificationStep(
+                        rule = RuleId.COLOR_MATCH,
+                        params = mapOf("color" to secondColor.ordinal.toFloat()),
+                        holdMs = ctx.knobs.holdMs,
+                        mustFollowPreviousStep = true,
+                        actorIndices = listOf(1)
+                    )
+                ),
+                timeLimitMs = ctx.knobs.timeLimitMs,
+                baseScore = 35,
+                hints = listOf("Find the ${colorWord(color)} one first", "Now show me the ${colorWord(secondColor)} one")
+            )
+        }
+
         val word = colorWord(color)
         return ChallengeSpec(
             id = "G3-${target.trackId}-${color.name}",

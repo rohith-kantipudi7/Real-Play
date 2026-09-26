@@ -46,6 +46,18 @@ sealed interface OverlayCue {
     data class GhostBox(
         val left: Float, val top: Float, val right: Float, val bottom: Float
     ) : OverlayCue
+
+    /**
+     * The live G7 triangle (§7): [corners] are the three centres in NORMALIZED space, [edgesOk][i]
+     * colours the edge i→(i+1) green when its constraint holds and amber when not, and [label] prints
+     * the live area + smallest angle. [satisfied] tints the fill when the whole triangle is valid.
+     */
+    data class Triangle(
+        val corners: List<Pair<Float, Float>>,
+        val edgesOk: List<Boolean>,
+        val satisfied: Boolean,
+        val label: String
+    ) : OverlayCue
 }
 
 /**
@@ -85,6 +97,7 @@ fun CueCanvas(
                 is OverlayCue.GhostBox -> drawGhostBox(mapper, cue, pulse)
                 is OverlayCue.Arrow -> drawArrow(mapper, cue, arrowPhase, pulse)
                 is OverlayCue.Glyph -> drawGlyph(mapper, cue)
+                is OverlayCue.Triangle -> drawTriangle(mapper, cue, pulse)
             }
         }
     }
@@ -173,3 +186,55 @@ private fun DrawScope.drawGlyph(mapper: CoordinateMapper, cue: OverlayCue.Glyph)
         drawText(cue.text, c.x, c.y + 42f, paint)
     }
 }
+
+private fun DrawScope.drawTriangle(mapper: CoordinateMapper, cue: OverlayCue.Triangle, pulse: Float) {
+    if (cue.corners.size < 3) return
+    val pts = cue.corners.map { mapper.mapPoint(it.first, it.second) }
+    val green = Color(0xFF57E39B)
+    val amber = Color(0xFFFFB020)
+
+    // A soft fill that tints green once every constraint is met — the "you did it" preview.
+    if (cue.satisfied) {
+        val path = androidx.compose.ui.graphics.Path().apply {
+            moveTo(pts[0].x, pts[0].y)
+            lineTo(pts[1].x, pts[1].y)
+            lineTo(pts[2].x, pts[2].y)
+            close()
+        }
+        drawPath(path, green.copy(alpha = 0.12f + 0.10f * pulse))
+    }
+
+    // Each edge i→(i+1) coloured by its own constraint (green when it holds, amber when not).
+    for (i in 0..2) {
+        val a = pts[i]
+        val b = pts[(i + 1) % 3]
+        val ok = cue.edgesOk.getOrElse(i) { false }
+        val color = if (ok) green else amber
+        drawLine(
+            color.copy(alpha = 0.75f + 0.25f * pulse),
+            Offset(a.x, a.y), Offset(b.x, b.y),
+            strokeWidth = 8f + 3f * pulse
+        )
+    }
+
+    // Corner dots.
+    pts.forEach { p ->
+        drawCircle(Color.White.copy(alpha = 0.85f), radius = 9f, center = Offset(p.x, p.y))
+    }
+
+    // Live area + smallest-angle readout at the centroid.
+    val cx = pts.sumOf { it.x.toDouble() }.toFloat() / 3f
+    val cy = pts.sumOf { it.y.toDouble() }.toFloat() / 3f
+    drawContext.canvas.nativeCanvas.apply {
+        val paint = Paint().apply {
+            color = if (cue.satisfied) android.graphics.Color.parseColor("#57E39B")
+            else android.graphics.Color.parseColor("#FFB020")
+            textSize = 42f
+            isAntiAlias = true
+            textAlign = Paint.Align.CENTER
+            setShadowLayer(6f, 0f, 0f, android.graphics.Color.BLACK)
+        }
+        drawText(cue.label, cx, cy, paint)
+    }
+}
+

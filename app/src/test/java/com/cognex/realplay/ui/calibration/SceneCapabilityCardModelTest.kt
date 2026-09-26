@@ -30,14 +30,15 @@ class SceneCapabilityCardModelTest {
 
     @Test
     fun possible_countsOnlyFeasibleGames_andOmitsZeroRows() {
-        // 4 movable, 1 zone, 3 colours → G0,G1,G2,G3 all feasible = 4 possible.
+        // 4 movable, 1 zone, 3 colours → G0,G1,G2,G3 feasible, plus G7 (needs ≥3 movable) = 5.
+        // G6 stays out (no player). This proves the count follows the live 8-generator registry.
         val cap = CFix.cap(
             movableCount = 4, handheldCount = 2, zoneCount = 1,
             distinctColors = setOf(ColorTag.RED, ColorTag.BLUE, ColorTag.GREEN),
             spread = 0.6f, richness = 0.7f
         )
         val model = SceneCapabilityCardModel.from(cap, CFix.ctx(), registry)
-        assertEquals(4, model.possible)
+        assertEquals(5, model.possible)
         assertEquals(ChallengeType.DROP_ZONE, model.playingType)   // G2 (0.9 with a zone) wins
         // No zero-valued rows (landmark etc. never appear here).
         assertTrue(model.rows.all { it.value > 0 })

@@ -67,4 +67,17 @@ sealed interface Overlay {
 
     /** COACHING cue — a big pictograph of the goal inside [box] (v3.6-B). */
     data class Pictograph(val box: NormRect, val glyph: String) : Overlay
+
+    /**
+     * COACHING cue — the live G7 triangle (§7, §7.1): [corners] are the three objects' centres,
+     * [edgesOk] the per-edge (i→i+1) constraint status, [satisfied] the whole-triangle preview, and
+     * [area]/[minAngleDeg] the live geometry printed beside it. Presentation only (invariant 23).
+     */
+    data class TriangleGuide(
+        val corners: List<NormPoint>,
+        val edgesOk: List<Boolean>,
+        val satisfied: Boolean,
+        val area: Float,
+        val minAngleDeg: Float
+    ) : Overlay
 }

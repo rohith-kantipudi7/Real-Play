@@ -26,8 +26,8 @@ import kotlin.math.min
  * back to highlight-colour phrasing ("the glowing blue one") when an object is not nameable or when
  * trackOnlyMode is on — automatic, not a separate mode (§7.1).
  *
- * maxStepsForTier returns 2 at HARD (the chained "…then move the cup away" form arrives in S9); for
- * now generate() emits only the single-step form but respects the [stepBudget] parameter.
+ * maxStepsForTier returns 2 at HARD; the chained "…then move the cup away from the book" form is
+ * emitted when the budget is 2 and a distinct third movable object exists (§8.1b, §7.1).
  */
 class G1MoveNearGenerator : ChallengeGenerator {
 
@@ -60,7 +60,47 @@ class G1MoveNearGenerator : ChallengeGenerator {
         val subjName = phrase(subject, affById[subject.trackId], ctx.trackOnlyMode)
         val refName = phrase(reference, affById[reference.trackId], ctx.trackOnlyMode)
 
-        // stepBudget is respected: we never emit more than one step here (chained form is S9).
+        // STRUCTURAL axis (§8.1b, §7.1): at HARD with a 2-step budget, chain a second ordered step —
+        // "…then move the cup away from the book". The second step is DISTANCE_GREATER_THAN with
+        // mustFollowPreviousStep, and it operates on a DIFFERENT object (the cup) via actorIndices,
+        // so both steps read their own actors. Falls back to the single-step form when the budget is
+        // 1 or the scene lacks a distinct third movable object.
+        val third = pickThird(world, affById, subject, reference)
+        if (stepBudget >= 2 && third != null) {
+            val thirdName = phrase(third, affById[third.trackId], ctx.trackOnlyMode)
+            val awayThreshold = 1.8f * threshold
+            return ChallengeSpec(
+                id = "G1-${subject.trackId}-${reference.trackId}-${third.trackId}",
+                type = type,
+                tier = ctx.effectiveTier,
+                ageBand = ctx.ageBand,
+                actors = listOf(
+                    ActorRef.ByTrackId(subject.trackId),
+                    ActorRef.ByTrackId(reference.trackId),
+                    ActorRef.ByTrackId(third.trackId)
+                ),
+                instruction = "Move $subjName next to $refName, then move $thirdName far from $refName.",
+                steps = listOf(
+                    VerificationStep(
+                        rule = RuleId.DISTANCE_LESS_THAN,
+                        params = mapOf("threshold" to threshold),
+                        holdMs = ctx.knobs.holdMs,
+                        actorIndices = listOf(0, 1)
+                    ),
+                    VerificationStep(
+                        rule = RuleId.DISTANCE_GREATER_THAN,
+                        params = mapOf("threshold" to awayThreshold),
+                        holdMs = ctx.knobs.holdMs,
+                        mustFollowPreviousStep = true,
+                        actorIndices = listOf(2, 1)
+                    )
+                ),
+                timeLimitMs = ctx.knobs.timeLimitMs,
+                baseScore = 30,
+                hints = listOf("First slide it close", "Now move the other one away")
+            )
+        }
+
         val steps = listOf(
             VerificationStep(
                 rule = RuleId.DISTANCE_LESS_THAN,
@@ -82,6 +122,21 @@ class G1MoveNearGenerator : ChallengeGenerator {
             hints = listOf("Slide it closer", "Almost touching now")
         )
     }
+
+    /** A distinct movable third object (the "cup" in the chained form), or null when none exists. */
+    private fun pickThird(
+        world: WorldState,
+        affById: Map<Int, Affordance>,
+        subject: TrackedObject,
+        reference: TrackedObject
+    ): TrackedObject? {
+        val used = setOf(subject.trackId, reference.trackId)
+        return world.objects
+            .filter { it.trackId !in used && affById[it.trackId]?.movable == true }
+            .ifEmpty { world.objects.filter { it.trackId !in used } }
+            .minByOrNull { it.box.area }   // prefer the most handheld one
+    }
+
 
     /**
      * Chooses (subject, reference). Candidates are movable + stable objects; falls back to movable

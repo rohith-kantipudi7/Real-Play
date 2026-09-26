@@ -30,6 +30,21 @@ sealed interface VisualCue {
 
     /** The target zone breathes. */
     data class ZonePulse(val zoneId: String) : VisualCue
+
+    /**
+     * The live triangle for G7 (Architecture §7, §7.1) — the demo centrepiece. [corners] are the
+     * three objects' current centres; [edgesOk][i] is true when the edge from corner i→(i+1) meets
+     * its constraint (drawn green, else amber). [satisfied] is the whole-triangle verdict preview and
+     * [area]/[minAngleDeg] are printed live. Presentation only — the verifier still decides the pass
+     * (§20 invariant 23).
+     */
+    data class TriangleGuide(
+        val corners: List<NormPoint>,
+        val edgesOk: List<Boolean>,
+        val satisfied: Boolean,
+        val area: Float,
+        val minAngleDeg: Float
+    ) : VisualCue
 }
 
 /** How strongly a [VisualCue.Highlight] pulses. The primary actor is [STRONG]; context is [GENTLE]. */

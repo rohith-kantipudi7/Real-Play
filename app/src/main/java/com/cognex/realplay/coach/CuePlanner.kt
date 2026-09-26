@@ -3,7 +3,9 @@ package com.cognex.realplay.coach
 import com.cognex.realplay.challenge.ActorRef
 import com.cognex.realplay.challenge.AgeBand
 import com.cognex.realplay.challenge.ChallengeSpec
+import com.cognex.realplay.challenge.scopedTo
 import com.cognex.realplay.verify.RuleId
+import com.cognex.realplay.verify.VerifyGeometry
 import com.cognex.realplay.world.ColorTag
 import com.cognex.realplay.world.NormPoint
 import com.cognex.realplay.world.TrackedObject
@@ -33,11 +35,16 @@ object CuePlanner {
      */
     fun plan(spec: ChallengeSpec, world: WorldState, stepIndex: Int = 0): List<VisualCue> {
         val step = spec.steps.getOrNull(stepIndex) ?: return emptyList()
-        val full = buildCues(step.rule, step.params, spec, world)
+        // Project to this step's own actors so a chained mission cues the RIGHT objects per step
+        // (§8.1b) — the same projection the MissionRunner feeds the verifier.
+        val scoped = spec.scopedTo(step)
+        val full = buildCues(step.rule, step.params, scoped, world)
         return when (spec.ageBand) {
             AgeBand.TODDLER, AgeBand.EARLY -> full
             AgeBand.MIDDLE, AgeBand.OLDER ->
-                full.filter { it is VisualCue.Highlight || it is VisualCue.PathArrow }
+                full.filter {
+                    it is VisualCue.Highlight || it is VisualCue.PathArrow || it is VisualCue.TriangleGuide
+                }
         }
     }
 
@@ -105,10 +112,18 @@ object CuePlanner {
                 add(VisualCue.Pictograph(Symbol.Shape(ShapeKind.SQUARE)))
             }
 
-            // Multi-object geometry — highlight every resolvable actor.
+            // Multi-object geometry — the live G7 triangle (§7): draw the three centres, colour each
+            // edge by its constraint, print area + smallest angle. Falls back to plain highlights when
+            // fewer than three corners resolve this frame.
             RuleId.NON_DEGENERATE_TRIANGLE -> {
-                highlightAll(spec, world)
-                add(VisualCue.Pictograph(Symbol.Shape(ShapeKind.TRIANGLE)))
+                val guide = triangleGuide(spec, world, params)
+                if (guide != null) {
+                    highlightAll(spec, world)
+                    add(guide)
+                } else {
+                    highlightAll(spec, world)
+                    add(VisualCue.Pictograph(Symbol.Shape(ShapeKind.TRIANGLE)))
+                }
             }
 
             RuleId.ARRANGEMENT_MATCH, RuleId.COUNT_EQUALS -> highlightAll(spec, world)
@@ -138,6 +153,44 @@ object CuePlanner {
                 add(VisualCue.Highlight(it.trackId, if (i == 0) Pulse.STRONG else Pulse.GENTLE))
             }
         }
+    }
+
+    /**
+     * Builds the live [VisualCue.TriangleGuide] from the three corner objects' current centres and
+     * the step's geometry thresholds (§7). Returns null when fewer than three corners resolve. Each
+     * edge is "ok" (green) when the triangle is non-degenerate (area ≥ minArea) and that edge is not
+     * over-dominant (its length / the shortest side ≤ maxRatio); a collinear layout drops the area to
+     * ~0 so every edge turns amber — exactly the failure the verifier rejects.
+     */
+    private fun triangleGuide(
+        spec: ChallengeSpec,
+        world: WorldState,
+        params: Map<String, Float>
+    ): VisualCue.TriangleGuide? {
+        val corners = (0..2).map { objectAt(spec, world, it) }
+        if (corners.any { it == null }) return null
+        val pts = corners.map { it!!.center }
+        val m = VerifyGeometry.triangleMetrics(pts[0], pts[1], pts[2])
+        val minArea = params["minArea"] ?: 0.02f
+        val minAngle = params["minAngle"] ?: 20f
+        val maxRatio = params["maxRatio"] ?: 4f
+
+        val sides = listOf(
+            pts[0].distanceTo(pts[1]),
+            pts[1].distanceTo(pts[2]),
+            pts[2].distanceTo(pts[0])
+        )
+        val shortest = sides.min().coerceAtLeast(1e-4f)
+        val areaOk = m.area >= minArea
+        val edgesOk = sides.map { areaOk && (it / shortest) <= maxRatio }
+        val satisfied = areaOk && m.minAngleDeg >= minAngle && m.sideRatio <= maxRatio
+        return VisualCue.TriangleGuide(pts, edgesOk, satisfied, m.area, m.minAngleDeg)
+    }
+
+    private fun NormPoint.distanceTo(other: NormPoint): Float {
+        val dx = x - other.x
+        val dy = y - other.y
+        return kotlin.math.sqrt(dx * dx + dy * dy)
     }
 
     private fun objectAt(spec: ChallengeSpec, world: WorldState, index: Int): TrackedObject? =
