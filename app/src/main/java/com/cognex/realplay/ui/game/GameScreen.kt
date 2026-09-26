@@ -1,17 +1,15 @@
 package com.cognex.realplay.ui.game
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -32,7 +30,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.cognex.realplay.camera.CameraController
-import com.cognex.realplay.engine.AppSettings
 import com.cognex.realplay.engine.GameUiState
 import com.cognex.realplay.engine.GameViewModel
 import com.cognex.realplay.engine.PlayStatus
@@ -46,12 +43,14 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 
 /**
- * The live game loop (Architecture §13 S5). Preview + detection overlay + instruction + progress
- * ring + score/streak, driven entirely by the single [GameUiState] the [GameViewModel] exposes.
+ * The live game loop (Architecture §13 S5/S6). Preview + detection overlay, the pre-challenge
+ * briefing with a 3-2-1 countdown, the hold-ring, the HUD, the multi-step tracker, the domain-aware
+ * evidence panel, the calm coaching toast and the success burst — all a pure function of the single
+ * [GameUiState] the [GameViewModel] exposes.
  *
  * The camera/detector run exactly as in calibration; each world update (with its capability) is
- * handed to the view model, which verifies OFF the analyzer thread and publishes UI state. Retry,
- * timeout and the Unsure/coaching path are all handled by the view model — this screen only draws.
+ * handed to the view model, which verifies OFF the analyzer thread and publishes UI state. This
+ * screen only draws and plays sound.
  */
 @Composable
 fun GameScreen(onFinish: () -> Unit, onBack: () -> Unit) {
@@ -60,15 +59,15 @@ fun GameScreen(onFinish: () -> Unit, onBack: () -> Unit) {
         val scope = rememberCoroutineScope()
         val controller = remember { CameraController(context.applicationContext) }
         val vm: GameViewModel = viewModel()
+        val sound = remember { SoundManager() }
 
         val ui by vm.ui.collectAsState()
         val analysisInfo by controller.analyzer.analysisInfo.collectAsState()
-        val useFake by AppSettings.useFakeDetector.collectAsState()
 
         var overlay by remember { mutableStateOf<List<OverlayDetection>>(emptyList()) }
 
-        DisposableEffect(controller, useFake) {
-            val pipeline = ObjectDetectionPipeline(context.applicationContext, useFake)
+        DisposableEffect(controller) {
+            val pipeline = ObjectDetectionPipeline(context.applicationContext)
             controller.analyzer.frameSink = { pipeline.onFrame(it) }
             val job = scope.launch {
                 combine(pipeline.worldState, pipeline.capabilityReport) { world, report ->
@@ -92,6 +91,20 @@ fun GameScreen(onFinish: () -> Unit, onBack: () -> Unit) {
             }
         }
         DisposableEffect(controller) { onDispose { controller.shutdown() } }
+        DisposableEffect(sound) { onDispose { sound.release() } }
+
+        // Success / fail cues, driven purely by status transitions.
+        LaunchedEffect(ui.challengeIndex, ui.status) {
+            when (ui.status) {
+                PlayStatus.PASSED -> sound.success()
+                PlayStatus.TIMED_OUT, PlayStatus.FAILED -> sound.fail()
+                else -> Unit
+            }
+        }
+        // Distinct step cue when an intermediate step fires (multi-step missions).
+        LaunchedEffect(ui.completedSteps) {
+            if (ui.completedSteps in 1 until ui.stepCount) sound.step()
+        }
 
         // When the session ends, leave for the result screen.
         LaunchedEffect(ui.sessionOver) {
@@ -108,7 +121,25 @@ fun GameScreen(onFinish: () -> Unit, onBack: () -> Unit) {
                 detections = overlay
             )
 
-            GameHud(ui = ui, modifier = Modifier.align(Alignment.TopCenter))
+            HudBar(
+                score = ui.score,
+                streak = ui.streak,
+                challengeIndex = ui.challengeIndex,
+                timeFraction = ui.timeFraction,
+                timeRemainingMs = ui.timeRemainingMs,
+                modifier = Modifier.align(Alignment.TopCenter)
+            )
+
+            GamePlayColumn(ui = ui, modifier = Modifier.align(Alignment.Center))
+
+            // Coaching toast sits just above the controls.
+            CoachingToast(
+                hint = ui.coachingHint,
+                visible = ui.status == PlayStatus.COACHING,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 108.dp)
+            )
 
             // Bottom controls.
             Row(
@@ -126,87 +157,67 @@ fun GameScreen(onFinish: () -> Unit, onBack: () -> Unit) {
                 ) { Text("Retry (${ui.retriesLeft})") }
                 Button(onClick = { vm.finish() }, modifier = Modifier.weight(1f)) { Text("Finish") }
             }
+
+            // Pre-challenge briefing + countdown (on top of everything).
+            BriefingOverlay(
+                challengeKey = ui.challengeIndex,
+                instruction = ui.instruction,
+                onTick = { sound.countdown() },
+                onGo = { sound.start() }
+            )
+
+            // Success celebration.
+            SuccessBurst(
+                visible = ui.status == PlayStatus.PASSED,
+                perfect = ui.perfect,
+                gainedPoints = ui.lastGain,
+                triggerKey = if (ui.status == PlayStatus.PASSED) ui.challengeIndex else 0
+            )
         }
     }
 }
 
 @Composable
-private fun GameHud(ui: GameUiState, modifier: Modifier = Modifier) {
+private fun GamePlayColumn(ui: GameUiState, modifier: Modifier = Modifier) {
     Column(
         modifier = modifier
-            .padding(top = 24.dp, start = 16.dp, end = 16.dp)
-            .fillMaxWidth(),
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // Score + streak + step indicator.
-        Row(
-            modifier = Modifier
-                .background(Color(0xAA000000), RoundedCornerShape(10.dp))
-                .padding(horizontal = 14.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            Text("Score ${ui.score}", color = Color.White, style = MaterialTheme.typography.labelLarge)
-            Text("Streak ${ui.streak}", color = Color(0xFFFDE047), style = MaterialTheme.typography.labelLarge)
-            if (ui.stepCount > 1) {
-                Text(
-                    "Step ${ui.stepIndex + 1} of ${ui.stepCount}",
-                    color = Color(0xFF60A5FA),
-                    style = MaterialTheme.typography.labelLarge
-                )
-            }
-            ui.timeRemainingMs?.let {
-                Text("${it / 1000}s", color = Color(0xFFF87171), style = MaterialTheme.typography.labelLarge)
-            }
-        }
-
-        // Instruction.
         Text(
             text = ui.instruction,
             color = Color.White,
             style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.SemiBold,
-            modifier = Modifier
-                .background(Color(0x99000000), RoundedCornerShape(12.dp))
-                .padding(horizontal = 16.dp, vertical = 10.dp)
+            fontWeight = FontWeight.SemiBold
         )
 
-        // Progress ring + status word.
-        Box(contentAlignment = Alignment.Center, modifier = Modifier.size(96.dp)) {
-            CircularProgressIndicator(
-                progress = { ui.stepProgress.coerceIn(0f, 1f) },
-                modifier = Modifier.size(96.dp),
-                color = statusColor(ui.status),
-                trackColor = Color(0x33FFFFFF)
-            )
+        // The persuasive hold-ring with the status glyph in the centre.
+        ProgressRing(
+            progress = ui.stepProgress,
+            color = statusColor(ui.status)
+        ) {
             Text(
                 text = statusWord(ui.status),
                 color = statusColor(ui.status),
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.Bold
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Black
             )
         }
 
-        // Coaching (Unsure) or evidence line.
-        val subtitle = ui.coachingHint ?: ui.evidenceLine
-        if (subtitle != null) {
-            Text(
-                text = subtitle,
-                color = Color(0xFFE2E8F0),
-                style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier
-                    .background(Color(0x88000000), RoundedCornerShape(8.dp))
-                    .padding(horizontal = 12.dp, vertical = 6.dp)
-            )
-        }
+        // Multi-step tracker (renders only when stepCount > 1).
+        StepTracker(
+            stepIndex = ui.stepIndex,
+            stepCount = ui.stepCount,
+            completedSteps = ui.completedSteps,
+            stepProgress = ui.stepProgress
+        )
 
-        if (ui.winnerId.isNotEmpty()) {
-            Text(
-                text = "${ui.winnerId} · ${ui.winnerType}",
-                color = Color(0xFF94A3B8),
-                style = MaterialTheme.typography.labelSmall
-            )
-        }
+        // Domain-aware measurement panel.
+        EvidencePanel(evidence = ui.evidence)
+
+        Spacer(Modifier.height(4.dp))
     }
 }
 
@@ -222,7 +233,7 @@ private fun statusWord(status: PlayStatus): String = when (status) {
 private fun statusColor(status: PlayStatus): Color = when (status) {
     PlayStatus.PASSED -> Color(0xFF4ADE80)
     PlayStatus.FAILED, PlayStatus.TIMED_OUT -> Color(0xFFF87171)
-    PlayStatus.COACHING -> Color(0xFFFBBF24)
+    PlayStatus.COACHING -> Color(0xFF38BDF8)
     else -> Color(0xFF22D3EE)
 }
 

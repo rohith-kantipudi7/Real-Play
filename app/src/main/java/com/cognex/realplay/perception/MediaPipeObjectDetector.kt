@@ -92,7 +92,7 @@ class MediaPipeObjectDetector private constructor(
 
         /**
          * Creates the detector, resolving the model tier and trying GPU first, then CPU. Returns
-         * null if neither delegate can be created (caller should fall back to [FakeObjectDetector]).
+         * null if neither delegate can be created.
          */
         fun create(
             context: Context,

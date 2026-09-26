@@ -18,13 +18,10 @@ import kotlinx.coroutines.flow.asStateFlow
  * The [com.cognex.realplay.camera.FrameAnalyzer] calls [onFrame] on the analyzer thread; this
  * builds an MPImage from the frame bitmap (the fewest-copies path — the bitmap already holds
  * RGBA pixels, so BitmapImageBuilder wraps it without a colour-space conversion) and hands it to
- * the detector. Results (async for the real detector) are published on [detections].
- *
- * Selecting fake vs real is a one-line swap via [useFake]; the app runs end-to-end either way.
+ * the real MediaPipe detector. Results (async) are published on [detections].
  */
 class ObjectDetectionPipeline(
-    context: Context,
-    useFake: Boolean
+    context: Context
 ) {
     private val _detections = MutableStateFlow<List<RawDetection>>(emptyList())
     val detections: StateFlow<List<RawDetection>> = _detections.asStateFlow()
@@ -37,7 +34,7 @@ class ObjectDetectionPipeline(
     val capabilityReport = world.capabilityReport
 
     private val mediaPipe: MediaPipeObjectDetector?
-    private val detector: ObjectDetectorSource
+    private val detector: ObjectDetectorSource?
 
     private var frameCount = 0
 
@@ -60,26 +57,19 @@ class ObjectDetectionPipeline(
                 trackOnlyMode = AppSettings.forceTrackOnly.value
             )
         }
-        if (useFake) {
-            mediaPipe = null
-            detector = FakeObjectDetector(onResults)
-            RpLog.i(RpLog.Tag.PERCEPTION, "Detection pipeline: FAKE detector")
+        val real = MediaPipeObjectDetector.create(context, onResults)
+        mediaPipe = real
+        detector = real
+        if (real != null) {
+            RpLog.i(RpLog.Tag.PERCEPTION, "Detection pipeline: real MediaPipe detector")
         } else {
-            val real = MediaPipeObjectDetector.create(context, onResults)
-            if (real != null) {
-                mediaPipe = real
-                detector = real
-            } else {
-                // Real detector could not be created — degrade to fake so the app still runs.
-                mediaPipe = null
-                detector = FakeObjectDetector(onResults)
-                RpLog.w(RpLog.Tag.PERCEPTION, "Real detector unavailable; using FAKE detector")
-            }
+            RpLog.w(RpLog.Tag.PERCEPTION, "Real detector could not be created; no detections will be produced")
         }
     }
 
     /** Called per frame on the analyzer thread. Non-blocking. */
     fun onFrame(frame: CameraFrame) {
+        val d = detector ?: return
         lastTimestampMs = frame.timestampMs
         // Sample a luminance grid for frame-quality every 5th frame (§12 cadence).
         if (frameCount++ % 5 == 0) {
@@ -87,11 +77,11 @@ class ObjectDetectionPipeline(
         }
         mediaPipe?.setFrameBitmap(frame.bitmap)
         val mpImage = BitmapImageBuilder(frame.bitmap).build()
-        detector.detect(mpImage, frame.timestampMs)
+        d.detect(mpImage, frame.timestampMs)
     }
 
     fun close() {
-        detector.close()
+        detector?.close()
         _detections.value = emptyList()
     }
 }

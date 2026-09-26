@@ -28,7 +28,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.cognex.realplay.camera.CameraController
-import com.cognex.realplay.engine.AppSettings
 import com.cognex.realplay.perception.ObjectDetectionPipeline
 import com.cognex.realplay.ui.camera.CameraPermissionGate
 import com.cognex.realplay.ui.camera.CameraPreview
@@ -53,16 +52,15 @@ fun CalibrationScreen(onReady: () -> Unit, onBack: () -> Unit) {
 
         val fps by controller.analyzer.fps.collectAsState()
         val analysisInfo by controller.analyzer.analysisInfo.collectAsState()
-        val useFake by AppSettings.useFakeDetector.collectAsState()
 
         var showCalibration by remember { mutableStateOf(true) }
         var showCapability by remember { mutableStateOf(true) }
         var world by remember { mutableStateOf(WorldState.EMPTY) }
         var capReport by remember { mutableStateOf<SceneCapabilityReport?>(null) }
 
-        // (Re)build the detection pipeline whenever the fake/real toggle changes.
-        DisposableEffect(controller, useFake) {
-            val pipeline = ObjectDetectionPipeline(context.applicationContext, useFake)
+        // Build the detection pipeline once for the lifetime of this screen.
+        DisposableEffect(controller) {
+            val pipeline = ObjectDetectionPipeline(context.applicationContext)
             controller.analyzer.frameSink = { pipeline.onFrame(it) }
             val worldJob = scope.launch { pipeline.worldState.collect { world = it } }
             val capJob = scope.launch { pipeline.capabilityReport.collect { capReport = it } }
@@ -160,11 +158,6 @@ fun CalibrationScreen(onReady: () -> Unit, onBack: () -> Unit) {
                         label = { Text("Calibration") }
                     )
                     FilterChip(
-                        selected = useFake,
-                        onClick = { AppSettings.setUseFakeDetector(!useFake) },
-                        label = { Text("Fake detector") }
-                    )
-                    FilterChip(
                         selected = showCapability,
                         onClick = { showCapability = !showCapability },
                         label = { Text("Capability") }
@@ -180,10 +173,12 @@ fun CalibrationScreen(onReady: () -> Unit, onBack: () -> Unit) {
                         onClick = onBack,
                         modifier = Modifier.weight(1f)
                     ) { Text("Back") }
+                    val usable = world.quality.good && world.objects.isNotEmpty()
                     Button(
                         onClick = onReady,
+                        enabled = usable,
                         modifier = Modifier.weight(1f)
-                    ) { Text("Ready") }
+                    ) { Text(if (usable) "Ready" else "Get set…") }
                 }
             }
         }

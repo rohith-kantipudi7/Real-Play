@@ -63,18 +63,27 @@ fun SettingsScreen(
 
         Spacer(Modifier.height(32.dp))
         Text(
+            text = "Sound",
+            style = MaterialTheme.typography.titleLarge,
+            color = MaterialTheme.colorScheme.secondary
+        )
+        Spacer(Modifier.height(8.dp))
+
+        val muted by AppSettings.muted.collectAsState()
+        ToggleRow(
+            label = "Mute sound effects",
+            checked = muted,
+            onCheckedChange = AppSettings::setMuted
+        )
+
+        Spacer(Modifier.height(32.dp))
+        Text(
             text = "Developer",
             style = MaterialTheme.typography.titleLarge,
             color = MaterialTheme.colorScheme.secondary
         )
         Spacer(Modifier.height(8.dp))
 
-        val useFake by AppSettings.useFakeDetector.collectAsState()
-        ToggleRow(
-            label = "Use fake detector",
-            checked = useFake,
-            onCheckedChange = AppSettings::setUseFakeDetector
-        )
         val forceTrackOnly by AppSettings.forceTrackOnly.collectAsState()
         ToggleRow(
             label = "Force track-only mode",

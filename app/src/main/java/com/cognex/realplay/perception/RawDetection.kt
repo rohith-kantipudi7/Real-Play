@@ -19,7 +19,7 @@ data class RawDetection(
 
 /**
  * A source of per-frame object detections. Implemented by [MediaPipeObjectDetector] (real, GPU
- * with CPU fallback) and [FakeObjectDetector] (scripted, no camera needed).
+ * with CPU fallback).
  *
  * Detection may be asynchronous (MediaPipe LIVE_STREAM), so results are delivered via the
  * `onResults` callback supplied at construction rather than returned from [detect].

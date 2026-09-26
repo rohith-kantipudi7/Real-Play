@@ -40,7 +40,7 @@ import kotlinx.coroutines.launch
  * frame only COACHES — it consumes no retry and never changes difficulty (§8, §20 invariant 2).
  */
 class GameViewModel(
-    private val ageBand: AgeBand = AgeBand.MIDDLE,
+    private val ageBand: AgeBand = SessionConfig.ageBand,
     private val selectionMode: SelectionMode = SelectionMode.RECOMMENDED,
     private val verifierRegistry: VerifierRegistry = VerifierRegistry.default(),
     challengeRegistry: ChallengeRegistry? = null
@@ -60,6 +60,9 @@ class GameViewModel(
     private var seedCounter = 0L
     private var lastMeasured: Float? = null
     private var lastRequired: Float? = null
+    private var lastEvidence: List<Evidence> = emptyList()
+    private var challengeIndex = 0
+    private var bestStreak = 0
     private var sessionOver = false
 
     /** True once the player has made real progress on the current mission (a gate has samples). */
@@ -75,6 +78,7 @@ class GameViewModel(
     )
 
     init {
+        SessionResults.reset()
         viewModelScope.launch(Dispatchers.Default) {
             frames.collect { process(it.world, it.cap) }
         }
@@ -169,6 +173,7 @@ class GameViewModel(
         session.previousTier = Difficulty.skillTier(session.rating, session.previousTier)
         val ctx = buildContext(cap)
 
+        challengeIndex++
         sm.reset(GameState.IDLE)
         sm.transition(GameState.SELECTING)
         val result = registry.select(world, cap, ctx, selectionMode)
@@ -181,6 +186,7 @@ class GameViewModel(
         started = false
         lastMeasured = null
         lastRequired = null
+        lastEvidence = emptyList()
 
         sm.transition(GameState.INSTRUCTION)
         sm.transition(GameState.PLAYING)
@@ -208,16 +214,39 @@ class GameViewModel(
         session.addScore(breakdown.total)
         sm.transition(GameState.RESULT)
 
+        val perfect = fast || session.streak >= 3
+        bestStreak = maxOf(bestStreak, session.streak)
+        SessionResults.record(
+            ChallengeResult(
+                index = challengeIndex,
+                type = spec.type.name,
+                winnerId = selection?.winnerId ?: "",
+                passed = true,
+                timedOut = false,
+                score = breakdown.total,
+                stepCount = spec.steps.size,
+                completedSteps = completed,
+                evidence = lastEvidence
+            ),
+            totalScore = session.totalScore,
+            bestStreak = bestStreak
+        )
+
         _ui.value = _ui.value.copy(
             status = PlayStatus.PASSED,
             stepIndex = spec.steps.size - 1,
             stepCount = spec.steps.size,
+            completedSteps = completed,
             stepProgress = 1f,
             score = session.totalScore,
             streak = session.streak,
+            challengeIndex = challengeIndex,
+            lastGain = breakdown.total,
+            perfect = perfect,
             coachingHint = null,
-            evidenceLine = "+${breakdown.total} points",
+            evidence = lastEvidence,
             timeRemainingMs = null,
+            timeFraction = null,
             retriesLeft = retriesLeft
         )
         // Advance to the next challenge on the following frame.
@@ -235,18 +264,38 @@ class GameViewModel(
                 status = PlayStatus.PLAYING,
                 coachingHint = "Time! Try again.",
                 retriesLeft = retriesLeft,
-                timeRemainingMs = spec.timeLimitMs
+                timeRemainingMs = spec.timeLimitMs,
+                timeFraction = 1f
             )
             return
         }
         if (!sm.transition(GameState.TIMED_OUT)) return
         session.recordFail()
         sm.transition(GameState.RESULT)
+        bestStreak = maxOf(bestStreak, session.streak)
+        SessionResults.record(
+            ChallengeResult(
+                index = challengeIndex,
+                type = spec.type.name,
+                winnerId = selection?.winnerId ?: "",
+                passed = false,
+                timedOut = true,
+                score = 0,
+                stepCount = spec.steps.size,
+                completedSteps = mission?.completedSteps() ?: 0,
+                evidence = lastEvidence
+            ),
+            totalScore = session.totalScore,
+            bestStreak = bestStreak
+        )
         _ui.value = _ui.value.copy(
             status = PlayStatus.TIMED_OUT,
+            perfect = false,
             coachingHint = "Out of time — new challenge coming up.",
             score = session.totalScore,
             streak = session.streak,
+            timeRemainingMs = null,
+            timeFraction = null,
             retriesLeft = retriesLeft
         )
         mission = null
@@ -258,17 +307,27 @@ class GameViewModel(
         val coaching = (tick.outcome as? VerificationOutcome.Unsure)?.coachingHint ?: tick.coachingHint
         val status = if (tick.outcome is VerificationOutcome.Unsure) PlayStatus.COACHING else PlayStatus.PLAYING
         val timeRemaining = spec.timeLimitMs?.let { (it - elapsedMs).coerceAtLeast(0L) }
+        val timeFraction = spec.timeLimitMs?.let { (timeRemaining!!.toFloat() / it).coerceIn(0f, 1f) }
+        val evNow = when (val o = tick.outcome) {
+            is VerificationOutcome.Pass -> o.evidence
+            is VerificationOutcome.Fail -> o.evidence
+            is VerificationOutcome.Unsure -> lastEvidence
+        }
         _ui.value = _ui.value.copy(
             status = status,
             instruction = spec.instruction,
             stepIndex = tick.stepIndex,
             stepCount = spec.steps.size,
+            completedSteps = tick.completedSteps,
             stepProgress = tick.stepProgress,
             score = session.totalScore,
             streak = session.streak,
+            challengeIndex = challengeIndex,
+            perfect = false,
             coachingHint = coaching,
-            evidenceLine = evidenceLine(tick.outcome),
+            evidence = evNow,
             timeRemainingMs = timeRemaining,
+            timeFraction = timeFraction,
             retriesLeft = retriesLeft,
             winnerId = selection?.winnerId ?: "",
             winnerType = spec.type.name,
@@ -287,27 +346,17 @@ class GameViewModel(
     )
 
     private fun captureEvidence(outcome: VerificationOutcome) {
-        val ev = when (outcome) {
-            is VerificationOutcome.Pass -> outcome.evidence.firstOrNull()
-            is VerificationOutcome.Fail -> outcome.evidence.firstOrNull()
-            is VerificationOutcome.Unsure -> null
+        val list = when (outcome) {
+            is VerificationOutcome.Pass -> outcome.evidence
+            is VerificationOutcome.Fail -> outcome.evidence
+            is VerificationOutcome.Unsure -> emptyList()
         }
-        if (ev != null) {
+        if (list.isNotEmpty()) {
+            lastEvidence = list
+            val ev = list.first()
             lastMeasured = ev.measured
             lastRequired = ev.required
         }
-    }
-
-    /** Honest NORMALIZED wording (§12) — never a fabricated centimetre. */
-    private fun evidenceLine(outcome: VerificationOutcome): String? {
-        val ev: Evidence = when (outcome) {
-            is VerificationOutcome.Pass -> outcome.evidence.firstOrNull() ?: return null
-            is VerificationOutcome.Fail -> outcome.evidence.firstOrNull() ?: return null
-            is VerificationOutcome.Unsure -> return null
-        }
-        val measured = String.format("%.2f", ev.measured)
-        val required = String.format("%.2f", ev.required)
-        return "${ev.label}: $measured ${ev.comparator} $required"
     }
 
     private companion object {
