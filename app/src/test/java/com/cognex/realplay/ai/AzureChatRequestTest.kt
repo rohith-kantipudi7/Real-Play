@@ -41,16 +41,24 @@ class AzureChatRequestTest {
 
     @Test
     fun buildBody_containsPromptAndStructuredOutputSchema() {
-        val body = AzureChatRequest.buildBody("Choose a skill.", maxTokens = 200, temperature = 0.5)
+        val body = AzureChatRequest.buildBody("Choose a skill.", maxTokens = 800)
         assertTrue(body.contains("Choose a skill."))
-        assertTrue(body.contains("\"max_tokens\":200"))
+        assertTrue(body.contains("\"max_completion_tokens\":800"))
         assertTrue(body.contains("\"generatorId\""))
         assertTrue(body.contains("json_schema"))
     }
 
     @Test
+    fun buildBody_usesMaxCompletionTokensAndNoTemperature() {
+        val body = AzureChatRequest.buildBody("x", maxTokens = 100)
+        assertTrue(body.contains("\"max_completion_tokens\":100"))
+        assertTrue(!body.contains("\"max_tokens\""))
+        assertTrue(!body.contains("\"temperature\""))
+    }
+
+    @Test
     fun buildBody_escapesQuotesAndNewlinesInPrompt() {
-        val body = AzureChatRequest.buildBody("He said \"hi\"\nline2", maxTokens = 10, temperature = 0.0)
+        val body = AzureChatRequest.buildBody("He said \"hi\"\nline2", maxTokens = 10)
         assertTrue(body.contains("He said \\\"hi\\\"\\nline2"))
     }
 

@@ -18,13 +18,16 @@ object AzureChatRequest {
     /**
      * The request body: a system + user message (the composer [prompt] from [PromptBuilder]), JSON
      * schema structured output constrained to the [ComposerProposal] shape (§6.5) — the model can
-     * only return `generatorId` + optional `instruction`/`hints`, nothing else. Low token budget,
-     * moderate temperature for varied-but-safe wording.
+     * only return `generatorId` + optional `instruction`/`hints`, nothing else.
+     *
+     * Uses `max_completion_tokens` (not `max_tokens`) and omits `temperature`: GPT-5-class
+     * reasoning deployments reject both `max_tokens` and any non-default temperature. The budget
+     * must cover the model's hidden reasoning tokens plus the JSON output, so it is generous.
      */
-    fun buildBody(prompt: String, maxTokens: Int, temperature: Double): String {
+    fun buildBody(prompt: String, maxTokens: Int): String {
         val escapedPrompt = escape(prompt)
         return """
-            {"messages":[{"role":"system","content":"Reply with ONLY one JSON object matching the schema. No prose."},{"role":"user","content":"$escapedPrompt"}],"max_tokens":$maxTokens,"temperature":$temperature,"response_format":{"type":"json_schema","json_schema":{"name":"composer_proposal","strict":true,"schema":{"type":"object","properties":{"generatorId":{"type":"string"},"instruction":{"type":["string","null"]},"hints":{"type":["array","null"],"items":{"type":"string"}}},"required":["generatorId","instruction","hints"],"additionalProperties":false}}}}
+            {"messages":[{"role":"system","content":"Reply with ONLY one JSON object matching the schema. No prose."},{"role":"user","content":"$escapedPrompt"}],"max_completion_tokens":$maxTokens,"response_format":{"type":"json_schema","json_schema":{"name":"composer_proposal","strict":true,"schema":{"type":"object","properties":{"generatorId":{"type":"string"},"instruction":{"type":["string","null"]},"hints":{"type":["array","null"],"items":{"type":"string"}}},"required":["generatorId","instruction","hints"],"additionalProperties":false}}}}
         """.trimIndent()
     }
 

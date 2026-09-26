@@ -72,23 +72,29 @@ object PromptBuilder {
         val naming = if (w.trackOnlyMode) {
             "Object labels are UNRELIABLE — refer to objects by their highlight colour, never by name."
         } else {
-            "Object labels are reliable — you may name objects."
+            "Object labels are reliable — name the ACTUAL objects the camera sees."
         }
         return buildString {
-            appendLine("You are the game composer for RealPlay, a camera game for children.")
-            appendLine("Choose exactly ONE skill from the list below and write a short, friendly")
+            appendLine("You are the game composer for RealPlay, a live camera game for children.")
+            appendLine("Choose exactly ONE skill id from the list, then write the game's on-screen")
             appendLine("instruction for a ${w.ageBand.lowercase()} child. Difficulty tier: ${w.tier}.")
-            appendLine("You may ONLY pick a listed skill id. You may NOT invent rules, thresholds,")
-            appendLine("objects, or actions. The game is judged by a separate physics verifier.")
-            appendLine(naming)
+            appendLine()
+            appendLine("Make the instruction feel like a REAL, specific little game — not a generic")
+            appendLine("command. Refer to the actual objects and colours the camera sees below, keep")
+            appendLine("it to one short, playful, encouraging sentence a child can do right now.")
+            appendLine("Give 1–2 tiny hints that help without giving it away.")
+            appendLine()
+            appendLine("HARD RULES: pick ONLY a listed skill id. Do NOT invent rules, thresholds,")
+            appendLine("scoring, new objects, or new actions — a separate physics verifier judges the")
+            appendLine("game, so the instruction must match the chosen skill's action exactly. $naming")
             appendLine()
             appendLine("SKILLS (pick one id):")
             appendLine(skillLines)
             appendLine()
-            appendLine("SCENE: objects=[$objects] colors=[$colors] players=${w.playerCount} zones=${w.zoneCount}")
+            appendLine("SCENE the camera sees now: objects=[$objects] colors=[$colors] players=${w.playerCount} zones=${w.zoneCount}")
             appendLine()
             appendLine("Reply with ONLY a JSON object, no prose:")
-            appendLine("{\"generatorId\":\"<one listed id>\",\"instruction\":\"<short sentence>\",\"hints\":[\"<hint>\"]}")
+            appendLine("{\"generatorId\":\"<one listed id>\",\"instruction\":\"<short fun sentence naming real objects>\",\"hints\":[\"<hint>\"]}")
         }.trim()
     }
 }

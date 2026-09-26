@@ -198,13 +198,13 @@ fun CalibrationScreen(onReady: () -> Unit, onBack: () -> Unit) {
             }
 
             // §15 SceneCapabilityCard — shown once between CALIBRATING and the first BRIEFING.
-            // The denominator "of N" is read from the LIVE registry (invariant 14).
             if (showCapabilityCard) {
                 val cardModel = remember(world, capReport) {
                     SceneCapabilityCardModel.from(
                         cap = capReport?.capability ?: com.cognex.realplay.world.SceneCapability.EMPTY,
                         ctx = capabilityCardContext(),
-                        registry = com.cognex.realplay.challenge.ChallengeRegistry.default()
+                        registry = com.cognex.realplay.challenge.ChallengeRegistry.default(),
+                        objectLabels = world.objects.map { it.label }
                     )
                 }
                 SceneCapabilityCard(

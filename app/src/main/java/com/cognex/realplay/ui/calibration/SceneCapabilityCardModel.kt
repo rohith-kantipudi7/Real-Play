@@ -22,7 +22,9 @@ data class SceneCapabilityCardModel(
     val playingType: ChallengeType?,
     val sparse: Boolean,
     val humanOnly: Boolean,
-    val ranked: List<RankedCandidate>
+    val ranked: List<RankedCandidate>,
+    /** Plain, de-duplicated names of the objects the camera currently sees, for a friendly summary. */
+    val objectLabels: List<String> = emptyList()
 ) {
     /** One animated count row: a value ticking 0→[value] with a [label]. */
     data class Row(val value: Int, val label: String)
@@ -37,7 +39,8 @@ data class SceneCapabilityCardModel(
         fun from(
             cap: SceneCapability,
             ctx: GenerationContext,
-            registry: ChallengeRegistry
+            registry: ChallengeRegistry,
+            objectLabels: List<String> = emptyList()
         ): SceneCapabilityCardModel {
             val ranked = registry.rank(cap, ctx)
             val possible = ranked.count { it.score > 0f }
@@ -54,7 +57,12 @@ data class SceneCapabilityCardModel(
                 playingType = winner,
                 sparse = cap.richness < SPARSE_RICHNESS,
                 humanOnly = humanOnly,
-                ranked = ranked
+                ranked = ranked,
+                objectLabels = objectLabels
+                    .map { it.trim() }
+                    .filter { it.isNotEmpty() }
+                    .distinct()
+                    .take(6)
             )
         }
 

@@ -50,7 +50,7 @@ class CloudModel(
 
     private fun call(prompt: String): String? {
         val url = URL(AzureChatRequest.completionsUrl(endpoint, deployment, apiVersion, overrideUrl))
-        val body = AzureChatRequest.buildBody(prompt, MAX_TOKENS, TEMPERATURE)
+        val body = AzureChatRequest.buildBody(prompt, MAX_TOKENS)
         val conn = (url.openConnection() as HttpURLConnection).apply {
             requestMethod = "POST"
             doOutput = true
@@ -75,10 +75,9 @@ class CloudModel(
     }
 
     private companion object {
-        const val TIMEOUT_MS = 2_000L
-        const val CONNECT_TIMEOUT_MS = 1_500
-        const val READ_TIMEOUT_MS = 1_800
-        const val MAX_TOKENS = 200
-        const val TEMPERATURE = 0.5
+        const val TIMEOUT_MS = 5_000L
+        const val CONNECT_TIMEOUT_MS = 2_000
+        const val READ_TIMEOUT_MS = 4_500
+        const val MAX_TOKENS = 800
     }
 }

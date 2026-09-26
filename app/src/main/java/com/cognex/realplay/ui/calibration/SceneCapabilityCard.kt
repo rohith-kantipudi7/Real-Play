@@ -19,6 +19,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -33,11 +34,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 /**
- * The SceneCapabilityCard (Architecture §15) — "your 2 seconds". Shown once after CALIBRATING,
- * counts ticking up, tap to skip, long-press to reveal the ranked list.
+ * The SceneCapabilityCard (Architecture §15) — "your 2 seconds". Shown once after CALIBRATING as a
+ * warm, plain-language summary of what the camera sees, then tap to start.
  *
- * The denominator "of N" comes from [SceneCapabilityCardModel.total] which is the LIVE registry size
- * (invariant 14) — never hard-coded here. Zero rows are already omitted by the model.
+ * The raw ranked score table (long-press) only appears when the developer overlay is on
+ * (Settings → Developer) — normal players never see internal scores.
  */
 @Composable
 fun SceneCapabilityCard(
@@ -45,16 +46,17 @@ fun SceneCapabilityCard(
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val devOverlay by com.cognex.realplay.engine.AppSettings.devOverlayEnabled.collectAsState()
     var showRanked by remember { mutableStateOf(false) }
 
     Box(
         modifier = modifier
             .fillMaxSize()
             .background(Color(0xCC000000))
-            .pointerInput(Unit) {
+            .pointerInput(devOverlay) {
                 detectTapGestures(
                     onTap = { onDismiss() },
-                    onLongPress = { showRanked = !showRanked }
+                    onLongPress = { if (devOverlay) showRanked = !showRanked }
                 )
             },
         contentAlignment = Alignment.Center
@@ -67,7 +69,7 @@ fun SceneCapabilityCard(
             horizontalAlignment = Alignment.Start
         ) {
             Text(
-                text = "I looked at your table.",
+                text = if (model.objectLabels.isNotEmpty()) "Here's what I can see" else "Let's take a look",
                 style = MaterialTheme.typography.headlineSmall,
                 color = Color.White,
                 fontWeight = FontWeight.SemiBold
@@ -76,51 +78,56 @@ fun SceneCapabilityCard(
 
             if (showRanked) {
                 RankedTable(model)
+            } else if (model.objectLabels.isNotEmpty()) {
+                Text(
+                    text = model.objectLabels.joinToString("  ·  ") {
+                        it.replaceFirstChar { ch -> ch.uppercase() }
+                    },
+                    style = MaterialTheme.typography.titleLarge,
+                    color = Color(0xFF25E0C8),
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    text = "Let's make a game out of these!",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = Color(0xFFCBD5E1)
+                )
             } else if (model.sparse) {
                 Text(
                     text = "This spot is a bit bare — let's play a simple one.",
                     style = MaterialTheme.typography.titleMedium,
                     color = Color(0xFFCBD5E1)
                 )
-                Spacer(Modifier.height(16.dp))
-                PossibleLine(model)
             } else {
                 model.rows.forEachIndexed { i, row ->
                     CountRow(value = row.value, label = row.label, delayMs = i * 120)
                 }
-                Spacer(Modifier.height(16.dp))
-                PossibleLine(model)
-            }
-
-            model.playingType?.let { type ->
-                Spacer(Modifier.height(18.dp))
+                Spacer(Modifier.height(10.dp))
                 Text(
-                    text = "Playing:  ${type.name.replace('_', ' ')}",
+                    text = "Let's make a game out of these!",
                     style = MaterialTheme.typography.titleMedium,
-                    color = Color(0xFF25E0C8),
-                    fontWeight = FontWeight.Bold
+                    color = Color(0xFFCBD5E1)
                 )
             }
 
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(20.dp))
             Text(
-                text = if (showRanked) "tap to start · long-press to hide" else "tap to start · long-press for details",
-                style = MaterialTheme.typography.labelSmall,
-                color = Color(0xFF64748B)
+                text = "Tap anywhere to start",
+                style = MaterialTheme.typography.labelLarge,
+                color = Color(0xFF25E0C8),
+                fontWeight = FontWeight.Bold
             )
+            if (devOverlay) {
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    text = if (showRanked) "long-press to hide scores" else "long-press for scores",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color(0xFF64748B)
+                )
+            }
         }
     }
-}
-
-/** "→ K of N games possible here." N is the live registry size (invariant 14). */
-@Composable
-private fun PossibleLine(model: SceneCapabilityCardModel) {
-    Text(
-        text = "\u2192 ${model.possible} of ${model.total} games possible here.",
-        style = MaterialTheme.typography.titleLarge,
-        color = Color.White,
-        fontWeight = FontWeight.Bold
-    )
 }
 
 /** A single count row with the number animating 0→[value] over ~600 ms, staggered by [delayMs]. */

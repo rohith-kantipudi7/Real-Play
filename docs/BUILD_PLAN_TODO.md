@@ -134,14 +134,27 @@ arranges REGISTERED skills, AI-OFF gate still passes fully offline).
       aggregation, all-null → null), `ComposerCacheTest` (get/put/eviction,
       `capabilityDigest` stability/sensitivity), plus a new `ChallengeComposerTest` case proving a
       repeated identical scene calls the model only once (cache hit on the second call).
-      342/342 total unit tests green; `assembleDebug` + install + launch smoke-tested on device.
-- [ ] **NOT done by the agent, intentionally:** a live call against the real Azure endpoint. The
-      user-supplied endpoint didn't match the standard `https://{resource}.openai.azure.com` shape
-      (looked like a `projects/proj-default`-style AI Foundry URL), so the exact REST path is
-      unverified — `realplay.azure.chatCompletionsUrl` in `local.properties` is available as a
-      manual override once the user verifies the correct path themselves. **The user must also
-      rotate the Azure key that was pasted in plaintext chat during this session** — see
-      `/memories/repo/realplay.md` for the full note.
+      343/343 total unit tests green; `assembleDebug` + install + launch smoke-tested on device.
+- [x] **Live endpoint VERIFIED WORKING (2026-09-27).** The classic path returned 400 "API version
+      not supported" until two fixes: (1) the endpoint must be the RESOURCE ROOT
+      `https://poc-agenticextraction.cognitiveservices.azure.com` (the portal also exposes the
+      `.services.ai.azure.com` alias) — NOT the `.../api/projects/proj-default` project path, which
+      always 400s; (2) `gpt-5.5` is a reasoning deployment, so the body must use
+      `max_completion_tokens` (not `max_tokens`) and omit `temperature`. With
+      `api-version=2024-08-01-preview` the call now returns 200 with valid structured JSON, e.g.
+      G1 → "Scoot the cup over so it can cozy up beside the book…". `AzureChatRequest.buildBody`
+      updated accordingly; `CloudModel` timeout raised to 5 s / budget 800 tokens for reasoning.
+- [x] **Object-aware prompt:** `PromptBuilder` now tells the model to name the ACTUAL detected
+      objects/colours and write one specific, playful sentence — so games read as real games, not
+      generic commands. Still validator-gated and re-bound to a registered skill (invariants 18–20).
+- [x] **Capability card redesigned:** the "I looked at your table" card no longer shows raw counts /
+      "K of N possible" / the ranked score table to players. It now lists the detected objects in
+      plain language ("Cup · Book · Ball → Let's make a game out of these!") with a clear "Tap to
+      start". The raw ranked scores are gated behind the developer overlay (Settings → Developer).
+- [x] **PARTY uses the LLM too:** party already routes through the same `GameViewModel` composer
+      (gated only on `composer.active()`), so once the cloud works, party games are LLM-composed —
+      the earlier "hardcoded party" feel was the same 400 root cause. **Rotate the pasted key** —
+      see `/memories/repo/realplay.md`.
 
 ---
 
