@@ -35,7 +35,9 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.cognex.realplay.camera.CameraController
 import com.cognex.realplay.engine.GameViewModel
+import com.cognex.realplay.engine.PlayMode
 import com.cognex.realplay.engine.PlayStatus
+import com.cognex.realplay.engine.SessionConfig
 import com.cognex.realplay.perception.ObjectDetectionPipeline
 import com.cognex.realplay.present.Hud
 import com.cognex.realplay.ui.camera.CameraPermissionGate
@@ -71,6 +73,11 @@ fun GameScreen(onFinish: () -> Unit, onBack: () -> Unit) {
 
         DisposableEffect(controller) {
             val pipeline = ObjectDetectionPipeline(context.applicationContext)
+            // Enable pose for Body/Mixed sessions when a pose backend exists; OBJECTS mode keeps
+            // pose fully disabled so the object-only path is untouched (§20 invariant 12).
+            pipeline.setPoseActive(
+                SessionConfig.mode != PlayMode.OBJECTS && pipeline.poseAvailable
+            )
             controller.analyzer.frameSink = { pipeline.onFrame(it) }
             val job = scope.launch {
                 combine(pipeline.worldState, pipeline.capabilityReport) { world, report ->
@@ -132,7 +139,8 @@ fun GameScreen(onFinish: () -> Unit, onBack: () -> Unit) {
                 modifier = Modifier.fillMaxSize(),
                 showCalibration = false,
                 detections = MobileTarget.detections(model),
-                zones = MobileTarget.zones(model)
+                zones = MobileTarget.zones(model),
+                players = MobileTarget.players(model)
             )
             // Visual-first coaching layer, drawn over the perception overlay (§26).
             CueCanvas(

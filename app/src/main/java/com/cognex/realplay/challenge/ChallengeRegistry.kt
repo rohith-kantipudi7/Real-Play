@@ -191,7 +191,9 @@ class ChallengeRegistry(generators: List<ChallengeGenerator>) {
                 com.cognex.realplay.challenge.generators.G0LastResortGenerator(),
                 com.cognex.realplay.challenge.generators.G1MoveNearGenerator(),
                 com.cognex.realplay.challenge.generators.G2DropZoneGenerator(),
-                com.cognex.realplay.challenge.generators.G3FindColorGenerator()
+                com.cognex.realplay.challenge.generators.G3FindColorGenerator(),
+                com.cognex.realplay.challenge.generators.G4StatueMatchGenerator(),
+                com.cognex.realplay.challenge.generators.G5RedLightGreenLightGenerator()
             )
         )
     }

@@ -21,6 +21,9 @@ import com.cognex.realplay.present.ScenePerception
 import com.cognex.realplay.present.SceneComposer
 import com.cognex.realplay.util.RpLog
 import com.cognex.realplay.verify.Evidence
+import com.cognex.realplay.verify.PoseLibrary
+import com.cognex.realplay.verify.RuleId
+import com.cognex.realplay.verify.VerificationBaseline
 import com.cognex.realplay.verify.VerificationOutcome
 import com.cognex.realplay.verify.VerifierRegistry
 import com.cognex.realplay.world.SceneCapability
@@ -201,6 +204,20 @@ class GameViewModel(
         publishPlaying(spec, tick, elapsed)
     }
 
+    /**
+     * Per-step verification baseline for [spec]. POSE_MATCH steps carry a `poseId` naming one of
+     * [PoseLibrary]'s eight targets, resolved here to a reference pose the verifier compares against
+     * (§4.1, §7). Every other rule needs no baseline.
+     */
+    private fun poseBaselineFor(spec: ChallengeSpec): (Int) -> VerificationBaseline = { stepIndex ->
+        val step = spec.steps.getOrNull(stepIndex)
+        if (step?.rule == RuleId.POSE_MATCH) {
+            PoseLibrary.baselineFor(step.params["poseId"]?.toInt() ?: 0)
+        } else {
+            VerificationBaseline.NONE
+        }
+    }
+
     /** Resolves the difficulty context WITHOUT mutating session state (safe to call every frame). */
     private fun buildContext(cap: SceneCapability): GenerationContext {
         val effectiveTier = Difficulty.effectiveTier(session.rating, cap.richness, ageBand, session.previousTier)
@@ -221,7 +238,7 @@ class GameViewModel(
         val result = registry.select(world, cap, ctx, selectionMode)
         if (result.winnerId != selection?.winnerId) {
             selection = result
-            mission = MissionRunner(result.spec, verifierRegistry)
+            mission = MissionRunner(result.spec, verifierRegistry, poseBaselineFor(result.spec))
             startTs = 0L
             RpLog.i(RpLog.Tag.ENGINE, "Upgraded to ${result.winnerId} (${result.spec.type}) budget=${result.stepBudget}")
         }
@@ -256,7 +273,7 @@ class GameViewModel(
         if (sessionOver || started) return
         if (p.index != challengeIndex || p.key != composedForKey) return
         selection = p.result
-        mission = MissionRunner(p.result.spec, verifierRegistry)
+        mission = MissionRunner(p.result.spec, verifierRegistry, poseBaselineFor(p.result.spec))
         startTs = 0L
         composerApplied = true
         RpLog.i(RpLog.Tag.AI, "composer applied ${p.result.winnerId} (${p.result.spec.type})")
@@ -278,7 +295,7 @@ class GameViewModel(
         val result = registry.select(world, cap, ctx, selectionMode)
         selection = result
         session.pushType(result.spec.type)
-        mission = MissionRunner(result.spec, verifierRegistry)
+        mission = MissionRunner(result.spec, verifierRegistry, poseBaselineFor(result.spec))
         startTs = 0L
         retriesLeft = MAX_RETRIES
         hintsUsed = 0

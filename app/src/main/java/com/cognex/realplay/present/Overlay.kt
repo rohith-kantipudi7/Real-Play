@@ -47,6 +47,18 @@ sealed interface Overlay {
         val color: ColorTag? = null
     ) : Overlay
 
+    /**
+     * A tracked player's presence marker (S8): a coloured halo around the torso [box] with a large
+     * "P{[playerId]}" label above it. [color] is the player's colour band (null → a default hue by
+     * id); [ambiguous] is true while identity is uncertain (rendered dimmer, §5 / §20 invariant 2).
+     */
+    data class PlayerHalo(
+        val box: NormRect,
+        val playerId: Int,
+        val color: ColorTag? = null,
+        val ambiguous: Boolean = false
+    ) : Overlay
+
     /** COACHING cue — an animated arrow from → to showing the motion (v3.6-B). */
     data class PathArrow(val from: NormPoint, val to: NormPoint, val color: ColorTag) : Overlay
 

@@ -30,6 +30,17 @@ data class OverlayZone(
     val color: Color = Color(0xFFFFB13A)
 )
 
+/** A tracked player to draw as a coloured torso halo with a large "P{id}" label (S8). */
+data class OverlayPlayer(
+    val left: Float,
+    val top: Float,
+    val right: Float,
+    val bottom: Float,
+    val label: String,
+    val color: Color = Color(0xFF60A5FA),
+    val ambiguous: Boolean = false
+)
+
 private val CalibrationBoxColor = Color(0xFF25E0C8) // turquoise
 private val CrosshairColor = Color(0xFFFFB13A)      // tangerine
 
@@ -50,7 +61,8 @@ fun OverlayCanvas(
     modifier: Modifier = Modifier,
     showCalibration: Boolean = false,
     detections: List<OverlayDetection> = emptyList(),
-    zones: List<OverlayZone> = emptyList()
+    zones: List<OverlayZone> = emptyList(),
+    players: List<OverlayPlayer> = emptyList()
 ) {
     Canvas(modifier = modifier) {
         val info = analysisInfo ?: return@Canvas
@@ -72,6 +84,10 @@ fun OverlayCanvas(
 
         detections.forEach { d ->
             drawDetectionBox(mapper, d.left, d.top, d.right, d.bottom, d.color, d.label)
+        }
+
+        players.forEach { p ->
+            drawPlayerHalo(mapper, p)
         }
 
         if (showCalibration) {
@@ -107,6 +123,33 @@ fun DrawScope.drawDetectionBox(
             }
             drawText(label, r.left, (r.top - 10f).coerceAtLeast(34f), paint)
         }
+    }
+}
+
+/** Draws a player halo (a coloured torso ring + a large "P{id}" label above it) from a NORMALIZED
+ *  box (S8). A dimmer, thinner ring signals an ambiguous identity (§5). */
+fun DrawScope.drawPlayerHalo(mapper: CoordinateMapper, p: OverlayPlayer) {
+    val r = mapper.mapRect(p.left, p.top, p.right, p.bottom)
+    val cx = r.left + r.width / 2f
+    val cy = r.top + r.height / 2f
+    val radius = maxOf(r.width, r.height) * 0.75f
+    val ringColor = if (p.ambiguous) p.color.copy(alpha = 0.45f) else p.color
+    drawCircle(
+        color = ringColor,
+        radius = radius,
+        center = Offset(cx, cy),
+        style = Stroke(width = if (p.ambiguous) 5f else 8f)
+    )
+    drawContext.canvas.nativeCanvas.apply {
+        val paint = Paint().apply {
+            this.color = android.graphics.Color.WHITE
+            textSize = 72f
+            isAntiAlias = true
+            isFakeBoldText = true
+            textAlign = Paint.Align.CENTER
+            setShadowLayer(6f, 0f, 0f, android.graphics.Color.BLACK)
+        }
+        drawText(p.label, cx, (cy - radius - 18f).coerceAtLeast(72f), paint)
     }
 }
 

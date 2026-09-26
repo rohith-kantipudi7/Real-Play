@@ -27,7 +27,8 @@ data class SceneGraph(
 data class ScenePerception(
     val highlights: List<Overlay.Highlight>,
     val zones: List<Overlay.ZoneShape>,
-    val skeletons: List<Overlay.Skeleton> = emptyList()
+    val skeletons: List<Overlay.Skeleton> = emptyList(),
+    val players: List<Overlay.PlayerHalo> = emptyList()
 ) {
     companion object {
         val EMPTY = ScenePerception(emptyList(), emptyList())
@@ -35,7 +36,7 @@ data class ScenePerception(
         /**
          * Projects a [WorldState] into overlays. Objects become [Overlay.Highlight]s (those whose
          * trackId is in [targetTrackIds] are flagged [Emphasis.TARGET]); zones become
-         * [Overlay.ZoneShape]s. Players/skeletons are added in S8. Pure — no Android.
+         * [Overlay.ZoneShape]s; confirmed players become [Overlay.PlayerHalo]s (S8). Pure — no Android.
          */
         fun fromWorld(world: WorldState, targetTrackIds: Set<Int> = emptySet()): ScenePerception {
             val highlights = world.objects.map { o ->
@@ -48,7 +49,15 @@ data class ScenePerception(
                 )
             }
             val zones = world.zones.map { z -> Overlay.ZoneShape(z.polygon, z.color, z.zoneId) }
-            return ScenePerception(highlights, zones)
+            val players = world.players.map { p ->
+                Overlay.PlayerHalo(
+                    box = p.torsoBox,
+                    playerId = p.playerId,
+                    color = p.colorBand,
+                    ambiguous = p.ambiguous
+                )
+            }
+            return ScenePerception(highlights, zones, players = players)
         }
     }
 }

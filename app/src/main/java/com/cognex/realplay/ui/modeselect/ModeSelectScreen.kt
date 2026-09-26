@@ -29,11 +29,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.cognex.realplay.challenge.AgeBand
 import com.cognex.realplay.engine.PlayMode
 import com.cognex.realplay.engine.SessionConfig
+import com.cognex.realplay.perception.AssetModelResolver
 import com.cognex.realplay.ui.theme.RpCyan
 import com.cognex.realplay.ui.theme.RpNavyElevated
 import com.cognex.realplay.ui.theme.RpOnDark
@@ -46,8 +48,14 @@ import com.cognex.realplay.ui.theme.RpOnDarkMuted
  */
 @Composable
 fun ModeSelectScreen(onContinue: () -> Unit, onBack: () -> Unit) {
-    // Pose is not available until S8, so body-based play is disabled for now.
-    val poseAvailable = false
+    // Pose ships in S8: Body/Mixed play is available whenever the pose landmarker asset is in the
+    // APK. If the runtime pose backend later fails on a device, the object-only path still works
+    // (players stay empty, G4/G5 pre-filter out) — §20 invariant 12.
+    val context = LocalContext.current
+    val poseAvailable = remember {
+        AssetModelResolver(context).inspectRequired()
+            .any { it.path.contains("pose_landmarker") && it.present }
+    }
 
     var mode by remember { mutableStateOf(PlayMode.OBJECTS) }
     var age by remember { mutableStateOf(AgeBand.MIDDLE) }

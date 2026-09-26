@@ -6,6 +6,7 @@ import com.cognex.realplay.present.Overlay
 import com.cognex.realplay.present.RenderModel
 import com.cognex.realplay.ui.overlay.OverlayCue
 import com.cognex.realplay.ui.overlay.OverlayDetection
+import com.cognex.realplay.ui.overlay.OverlayPlayer
 import com.cognex.realplay.ui.overlay.OverlayZone
 import com.cognex.realplay.world.ColorTag
 
@@ -70,8 +71,23 @@ object MobileTarget {
                 left = c.box.left, top = c.box.top, right = c.box.right, bottom = c.box.bottom
             )
             is Overlay.Skeleton -> null
+            is Overlay.PlayerHalo -> null
         }
     }
+
+    /** Player halos → coloured torso rings with a large "P{id}" label (S8). */
+    fun players(model: RenderModel): List<OverlayPlayer> =
+        model.scene.overlays.filterIsInstance<Overlay.PlayerHalo>().map { p ->
+            OverlayPlayer(
+                left = p.box.left,
+                top = p.box.top,
+                right = p.box.right,
+                bottom = p.box.bottom,
+                label = "P${p.playerId}",
+                color = colorForTag(p.color),
+                ambiguous = p.ambiguous
+            )
+        }
 
     /** Canonical [ColorTag] → display [Color] map for the mobile target. */
     fun colorForTag(tag: ColorTag?): Color = when (tag) {

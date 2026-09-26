@@ -28,6 +28,7 @@ object SceneComposer {
             addAll(perception.zones)
             addAll(perception.skeletons)
             addAll(perception.highlights)
+            addAll(perception.players)
         }
         return RenderModel(
             scene = SceneGraph(PassthroughLayer.CAMERA, overlays),

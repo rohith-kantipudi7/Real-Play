@@ -49,7 +49,9 @@ class WorldStateBuilder {
         gridWidth: Int = 0,
         gridHeight: Int = 0,
         zones: List<Zone> = emptyList(),
-        trackOnlyMode: Boolean = false
+        trackOnlyMode: Boolean = false,
+        players: List<TrackedPlayer> = emptyList(),
+        dynamics: PlayerDynamics = PlayerDynamics.EMPTY
     ): WorldState {
         val frameId = frameCounter++
 
@@ -61,13 +63,13 @@ class WorldStateBuilder {
             lastQuality = FrameQualityAnalyzer.analyze(lumaGrid, gridWidth, gridHeight)
         }
 
-        // Provisional world (players empty until the pose stage; zones supplied by the S7 zone
-        // detector) for affordance derivation and capability scoring (§6, S3.5).
+        // Provisional world (players supplied by the S8 pose stage; zones by the S7 zone detector)
+        // for affordance derivation and capability scoring (§6, S3.5).
         val provisional = WorldState(
             frameId = frameId,
             timestampMs = timestampMs,
             objects = objects,
-            players = emptyList(),
+            players = players,
             zones = zones,
             quality = lastQuality,
             affordances = emptyList(),
@@ -77,7 +79,7 @@ class WorldStateBuilder {
         val report = SceneCapability.report(
             world = provisional,
             affordances = affordances,
-            dynamics = PlayerDynamics.EMPTY,
+            dynamics = dynamics,
             forceTrackOnly = trackOnlyMode
         )
         _capabilityReport.value = report
