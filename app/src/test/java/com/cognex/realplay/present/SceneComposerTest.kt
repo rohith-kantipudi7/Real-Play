@@ -73,16 +73,18 @@ class SceneComposerTest {
     }
 
     @Test
-    fun `overlays are ordered back-to-front zones, skeletons, highlights, cues`() {
+    fun `perception overlays are ordered back-to-front zones, skeletons, highlights (no cues)`() {
         val model = SceneComposer.compose(GameUiState.INITIAL, perception, cues = listOf(cue))
-        assertEquals(listOf(zone, skeleton, highlight, cue), model.scene.overlays)
+        assertEquals(listOf(zone, skeleton, highlight), model.scene.overlays)
     }
 
     @Test
-    fun `scene uses the camera passthrough and cues are carried through`() {
+    fun `scene uses the camera passthrough and cues are a separate track`() {
         val model = SceneComposer.compose(GameUiState.INITIAL, perception, cues = listOf(cue))
         assertEquals(PassthroughLayer.CAMERA, model.scene.passthrough)
         assertEquals(listOf<Overlay>(cue), model.cues)
+        // The cue must NOT also appear as a perception overlay (no double-draw on a target).
+        assertTrue(cue !in model.scene.overlays)
     }
 
     @Test

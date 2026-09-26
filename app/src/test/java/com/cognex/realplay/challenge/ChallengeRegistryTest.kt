@@ -51,6 +51,30 @@ class ChallengeRegistryTest {
     }
 
     @Test
+    fun richCapButEmptyLiveFrame_fallsBackToG0_neverCrashes() {
+        // Regression: the capability is smoothed over recent frames (colours≥2, movable≥1 → G2/G3
+        // rank high), but THIS live frame momentarily detected nothing. An object generator's
+        // generate() would call .first() on an empty list and crash; the registry must fall back to
+        // G0 instead (§6.4, §20 invariant 13).
+        val reg = ChallengeRegistry.default()
+        val richCap = CFix.cap(
+            movableCount = 3,
+            containerCount = 1,
+            nameableCount = 3,
+            distinctColors = setOf(ColorTag.RED, ColorTag.BLUE, ColorTag.GREEN),
+            zoneCount = 1,
+            richness = 0.8f
+        )
+        val emptyWorld = CFix.world(objects = emptyList(), players = emptyList(), zones = emptyList())
+        for (mode in SelectionMode.entries) {
+            val result = reg.select(emptyWorld, richCap, CFix.ctx(), mode)
+            assertEquals("G0", result.winnerId)
+            assertEquals(ChallengeType.LAST_RESORT, result.spec.type)
+            assertTrue(result.spec.steps.isNotEmpty())
+        }
+    }
+
+    @Test
     fun g0_selectsAndGenerates_withOneUnlabelledObject() {
         val reg = registry()
         // One object, not enough for G1 (needs 2 movable). No zone, no player, no semantic label.

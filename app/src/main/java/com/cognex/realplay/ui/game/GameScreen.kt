@@ -1,5 +1,11 @@
 package com.cognex.realplay.ui.game
 
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -34,6 +40,7 @@ import com.cognex.realplay.perception.ObjectDetectionPipeline
 import com.cognex.realplay.present.Hud
 import com.cognex.realplay.ui.camera.CameraPermissionGate
 import com.cognex.realplay.ui.camera.CameraPreview
+import com.cognex.realplay.ui.overlay.CueCanvas
 import com.cognex.realplay.ui.overlay.OverlayCanvas
 import com.cognex.realplay.ui.present.MobileTarget
 import kotlinx.coroutines.flow.combine
@@ -101,6 +108,22 @@ fun GameScreen(onFinish: () -> Unit, onBack: () -> Unit) {
             if (ui.sessionOver) onFinish()
         }
 
+        // Looping animation that drives the visual-first coaching cues (§26): highlights breathe,
+        // the arrow's chevron travels toward the goal.
+        val cueAnim = rememberInfiniteTransition(label = "cues")
+        val pulse by cueAnim.animateFloat(
+            initialValue = 0f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(tween(900, easing = LinearEasing), RepeatMode.Reverse),
+            label = "pulse"
+        )
+        val arrowPhase by cueAnim.animateFloat(
+            initialValue = 0f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(tween(1100, easing = LinearEasing), RepeatMode.Restart),
+            label = "arrow"
+        )
+
         Box(modifier = Modifier.fillMaxSize()) {
             CameraPreview(controller = controller, modifier = Modifier.fillMaxSize())
             OverlayCanvas(
@@ -110,6 +133,15 @@ fun GameScreen(onFinish: () -> Unit, onBack: () -> Unit) {
                 showCalibration = false,
                 detections = MobileTarget.detections(model),
                 zones = MobileTarget.zones(model)
+            )
+            // Visual-first coaching layer, drawn over the perception overlay (§26).
+            CueCanvas(
+                analysisInfo = analysisInfo,
+                isFrontCamera = controller.isFrontCamera,
+                cues = MobileTarget.cues(model),
+                pulse = pulse,
+                arrowPhase = arrowPhase,
+                modifier = Modifier.fillMaxSize()
             )
 
             HudBar(

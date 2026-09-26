@@ -1,8 +1,10 @@
 package com.cognex.realplay.ui.present
 
 import androidx.compose.ui.graphics.Color
+import com.cognex.realplay.present.Emphasis
 import com.cognex.realplay.present.Overlay
 import com.cognex.realplay.present.RenderModel
+import com.cognex.realplay.ui.overlay.OverlayCue
 import com.cognex.realplay.ui.overlay.OverlayDetection
 import com.cognex.realplay.ui.overlay.OverlayZone
 import com.cognex.realplay.world.ColorTag
@@ -40,6 +42,36 @@ object MobileTarget {
                 color = colorForTag(z.color)
             )
         }
+
+    /**
+     * The visual-first coaching cue track (Architecture §26) → animated Compose cues. Reads only
+     * `model.cues` (the coaching track), never the perception overlays — so a highlight cue is drawn
+     * as a breathing halo, distinct from the plain perception box.
+     */
+    fun cues(model: RenderModel): List<OverlayCue> = model.cues.mapNotNull { c ->
+        when (c) {
+            is Overlay.Highlight -> OverlayCue.PulseBox(
+                left = c.box.left, top = c.box.top, right = c.box.right, bottom = c.box.bottom,
+                color = colorForTag(c.color),
+                strong = c.emphasis == Emphasis.TARGET
+            )
+            is Overlay.PathArrow -> OverlayCue.Arrow(
+                fromX = c.from.x, fromY = c.from.y, toX = c.to.x, toY = c.to.y,
+                color = colorForTag(c.color)
+            )
+            is Overlay.ZoneShape -> OverlayCue.ZonePulse(
+                polygon = c.polygon.map { it.x to it.y },
+                color = colorForTag(c.color)
+            )
+            is Overlay.Pictograph -> OverlayCue.Glyph(
+                cx = c.box.center.x, cy = c.box.center.y, text = c.glyph
+            )
+            is Overlay.Ghost -> OverlayCue.GhostBox(
+                left = c.box.left, top = c.box.top, right = c.box.right, bottom = c.box.bottom
+            )
+            is Overlay.Skeleton -> null
+        }
+    }
 
     /** Canonical [ColorTag] → display [Color] map for the mobile target. */
     fun colorForTag(tag: ColorTag?): Color = when (tag) {

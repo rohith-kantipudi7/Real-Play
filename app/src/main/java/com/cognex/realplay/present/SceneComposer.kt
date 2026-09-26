@@ -14,8 +14,10 @@ import com.cognex.realplay.engine.GameUiState
 object SceneComposer {
 
     /**
-     * Composes one frame. Overlays are ordered back-to-front: zones underneath, then skeletons, then
-     * object highlights, then the coaching [cues] on top. HUD fields map straight from [ui].
+     * Composes one frame. Perception overlays are ordered back-to-front in [SceneGraph.overlays]:
+     * zones underneath, then skeletons, then object highlights. The coaching [cues] are a SEPARATE
+     * track ([RenderModel.cues]) a target draws on top — kept apart so a target never double-draws a
+     * cue as a perception overlay. HUD fields map straight from [ui].
      */
     fun compose(
         ui: GameUiState,
@@ -26,7 +28,6 @@ object SceneComposer {
             addAll(perception.zones)
             addAll(perception.skeletons)
             addAll(perception.highlights)
-            addAll(cues)
         }
         return RenderModel(
             scene = SceneGraph(PassthroughLayer.CAMERA, overlays),

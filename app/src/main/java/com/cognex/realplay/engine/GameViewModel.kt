@@ -13,6 +13,9 @@ import com.cognex.realplay.challenge.DifficultyKnobs
 import com.cognex.realplay.challenge.GenerationContext
 import com.cognex.realplay.challenge.SelectionMode
 import com.cognex.realplay.challenge.SelectionResult
+import com.cognex.realplay.coach.CuePlanner
+import com.cognex.realplay.coach.CueResolver
+import com.cognex.realplay.present.Overlay
 import com.cognex.realplay.present.RenderModel
 import com.cognex.realplay.present.ScenePerception
 import com.cognex.realplay.present.SceneComposer
@@ -101,13 +104,21 @@ class GameViewModel(
     private val _scene = MutableStateFlow(ScenePerception.EMPTY)
 
     /**
+     * The active step's visual-first coaching cue track (Architecture §26). Planned deterministically
+     * by [CuePlanner] from the SAME spec the verifier judges and resolved to drawable [Overlay]s by
+     * [CueResolver]; empty whenever no mission is being played. Presentation only — it never changes a
+     * verdict (§20 invariant 23).
+     */
+    private val _cues = MutableStateFlow<List<Overlay>>(emptyList())
+
+    /**
      * The device-independent [RenderModel] the presentation layer renders (Architecture §3.6, §27).
-     * Derived purely from [_ui] (engine state) + [_scene] (perception overlays) via [SceneComposer];
-     * the engine itself never draws (§20 invariant 21). `MobileTarget` adapts this for the phone;
-     * a future `VrTarget` would consume the identical model.
+     * Derived purely from [_ui] (engine state) + [_scene] (perception overlays) + [_cues] (coaching)
+     * via [SceneComposer]; the engine itself never draws (§20 invariant 21). `MobileTarget` adapts
+     * this for the phone; a future `VrTarget` would consume the identical model.
      */
     val renderModel: StateFlow<RenderModel> =
-        combine(_ui, _scene) { ui, scene -> SceneComposer.compose(ui, scene) }
+        combine(_ui, _scene, _cues) { ui, scene, cues -> SceneComposer.compose(ui, scene, cues) }
             .stateIn(viewModelScope, SharingStarted.Eagerly, SceneComposer.EMPTY)
 
     private data class FrameInput(val world: WorldState, val cap: SceneCapability)
@@ -142,6 +153,7 @@ class GameViewModel(
     /** Ends the session — the screen navigates to the result. */
     fun finish() {
         sessionOver = true
+        _cues.value = emptyList()
         _ui.value = _ui.value.copy(sessionOver = true)
     }
 
@@ -173,6 +185,10 @@ class GameViewModel(
         val tick = runner.onFrame(world, world.timestampMs)
         captureEvidence(tick.outcome)
         if (tick.stepFired || tick.stepProgress > 0f) started = true
+
+        // Plan the visual-first coaching cues for the active step from the SAME spec the verifier
+        // judges (§26), resolved to drawable overlays against this frame's world. Presentation only.
+        _cues.value = CueResolver.resolve(CuePlanner.plan(spec, world, tick.stepIndex), world)
 
         if (tick.missionComplete) {
             onPass(spec, tick, elapsed)
@@ -273,6 +289,8 @@ class GameViewModel(
         pendingComposed = null
         composedForKey = null
         composerApplied = false
+
+        _cues.value = emptyList()
 
         sm.transition(GameState.INSTRUCTION)
         sm.transition(GameState.PLAYING)

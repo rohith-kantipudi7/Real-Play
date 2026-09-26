@@ -6,7 +6,9 @@ import com.cognex.realplay.present.RenderModel
 import com.cognex.realplay.present.SceneComposer
 import com.cognex.realplay.present.SceneGraph
 import com.cognex.realplay.present.ScenePerception
+import com.cognex.realplay.present.Emphasis
 import com.cognex.realplay.engine.GameUiState
+import com.cognex.realplay.ui.overlay.OverlayCue
 import com.cognex.realplay.world.ColorTag
 import com.cognex.realplay.world.NormPoint
 import com.cognex.realplay.world.NormRect
@@ -82,5 +84,27 @@ class MobileTargetTest {
         assertEquals(1, MobileTarget.detections(rm).size)
         assertEquals(1, MobileTarget.zones(rm).size)
         assertTrue(rm.hud.instruction.isNotEmpty())
+    }
+
+    @Test
+    fun `coaching cues map to animated overlay cues and are read only from the cue track`() {
+        val cueHighlight = highlight.copy(emphasis = Emphasis.TARGET)
+        val arrow = Overlay.PathArrow(NormPoint(0f, 0f), NormPoint(1f, 1f), ColorTag.CYAN)
+        val glyph = Overlay.Pictograph(NormRect(0.4f, 0.05f, 0.6f, 0.23f), "\uD83C\uDFAF")
+        val rm = RenderModel(
+            scene = SceneGraph(PassthroughLayer.CAMERA, listOf(highlight, zone)), // perception only
+            hud = SceneComposer.EMPTY.hud,
+            cues = listOf(cueHighlight, arrow, glyph)
+        )
+        val cues = MobileTarget.cues(rm)
+        assertEquals(3, cues.size)
+        val pulse = cues[0] as OverlayCue.PulseBox
+        assertTrue(pulse.strong)
+        assertTrue(cues[1] is OverlayCue.Arrow)
+        assertEquals("\uD83C\uDFAF", (cues[2] as OverlayCue.Glyph).text)
+
+        // Perception overlays in the scene are NOT drawn as cues (no double-draw).
+        assertEquals(1, MobileTarget.detections(rm).size)
+        assertEquals(1, MobileTarget.zones(rm).size)
     }
 }

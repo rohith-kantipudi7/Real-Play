@@ -82,10 +82,21 @@ class ChallengeRegistry(generators: List<ChallengeGenerator>) {
             SelectionMode.OPEN -> openWinner(ranked, ctx.seed) ?: fallback(ranked)
         }
 
-        val stepBudget = resolveStepBudget(winner, ctx)
         val safeWorld = SafetyFilter.apply(world, ctx.ageBand)
-        val spec = winner.generate(safeWorld, safeWorld.affordances, ctx, stepBudget)
-        return SelectionResult(spec, ranked, mode, stepBudget, winner.id)
+
+        // A cap-ranked winner can momentarily disagree with THIS frame's live world: the capability
+        // is smoothed over recent frames, but a single detection frame may be empty. No object- or
+        // player-based generator can bind against an empty world (their generate() would reference a
+        // non-existent actor), so fall back to the requirement-free G0 — the registry's totality
+        // guarantee (§6.4, §20 invariant 13). This keeps select() total and crash-free.
+        val bindable =
+            if (safeWorld.objects.isEmpty() && safeWorld.players.isEmpty())
+                generators.first { it.requires == Requirement.NONE }
+            else winner
+
+        val stepBudget = resolveStepBudget(bindable, ctx)
+        val spec = bindable.generate(safeWorld, safeWorld.affordances, ctx, stepBudget)
+        return SelectionResult(spec, ranked, mode, stepBudget, bindable.id)
     }
 
     /** Resolves the structural step budget, clamped to 1 for TODDLER/EARLY (§20 invariant 17). */
