@@ -18,9 +18,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.cognex.realplay.ui.theme.RpNavyDeep
+import com.cognex.realplay.ui.theme.RpRadius
 
 /**
  * The top status bar (Architecture §13 S6): score (counting up), a streak flame that grows with the
@@ -37,11 +40,13 @@ fun HudBar(
     modifier: Modifier = Modifier
 ) {
     val animatedScore by animateIntAsState(targetValue = score, label = "score")
+    val shape = RoundedCornerShape(bottomStart = RpRadius.lg, bottomEnd = RpRadius.lg)
 
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .background(Color(0xB3000000), RoundedCornerShape(bottomStartPercent = 0, bottomEndPercent = 0))
+            .shadow(4.dp, shape, clip = false)
+            .background(RpNavyDeep.copy(alpha = 0.85f), shape)
             .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {

@@ -11,4 +11,5 @@ object Routes {
     const val PARTY_ROSTER = "party_roster"
     const val PARTY_HANDOFF = "party_handoff"
     const val PARTY_PODIUM = "party_podium"
+    const val VR_PREVIEW = "vr_preview"
 }

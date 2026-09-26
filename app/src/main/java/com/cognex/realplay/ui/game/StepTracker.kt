@@ -17,9 +17,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.cognex.realplay.ui.theme.RpNavyDeep
+import com.cognex.realplay.ui.theme.RpRadius
 
 /**
  * The structural-difficulty display (Architecture §13 S6, §8.1b). For a multi-step mission it shows
@@ -40,10 +43,12 @@ fun StepTracker(
     activeColor: Color = Color(0xFF25E0C8)
 ) {
     if (stepCount <= 1) return
+    val shape = RoundedCornerShape(RpRadius.md)
 
     Column(
         modifier = modifier
-            .background(Color(0xAA000000), RoundedCornerShape(12.dp))
+            .shadow(4.dp, shape, clip = false)
+            .background(RpNavyDeep.copy(alpha = 0.85f), shape)
             .padding(horizontal = 14.dp, vertical = 10.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {        Text(

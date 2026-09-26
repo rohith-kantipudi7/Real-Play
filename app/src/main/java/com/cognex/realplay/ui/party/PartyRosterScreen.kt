@@ -11,8 +11,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -25,13 +23,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.cognex.realplay.challenge.AgeBand
 import com.cognex.realplay.engine.PartyRuntime
 import com.cognex.realplay.engine.SessionConfig
-import com.cognex.realplay.engine.ToddlerSupervision
 import com.cognex.realplay.party.Entrant
 import com.cognex.realplay.party.PartyFormat
 import com.cognex.realplay.party.PartySession
@@ -55,15 +51,15 @@ import com.cognex.realplay.ui.theme.RpSpace
  */
 @Composable
 fun PartyRosterScreen(onStart: () -> Unit, onBack: () -> Unit) {
-    val context = LocalContext.current
     var format by remember { mutableStateOf(PartyFormat.RELAY) }
     val kind = if (format == PartyFormat.TEAM_VS_TEAM) Roster.EntrantKind.TEAM else Roster.EntrantKind.PLAYER
     var names by remember(kind) {
         mutableStateOf(defaultNames(kind))
     }
-    var age by remember { mutableStateOf(SessionConfig.ageBand) }
-    var supervisionAcked by remember { mutableStateOf(ToddlerSupervision.isAcknowledged(context)) }
-    var showSupervisionDialog by remember { mutableStateOf(false) }
+    // Party is never TODDLER (§25) — clamp up if a prior SOLO session left TODDLER selected.
+    var age by remember {
+        mutableStateOf(SessionConfig.ageBand.takeIf { it != AgeBand.TODDLER } ?: AgeBand.EARLY)
+    }
     var error by remember { mutableStateOf<String?>(null) }
 
     val minCount = if (kind == Roster.EntrantKind.TEAM) Roster.MIN_TEAMS else Roster.MIN_PLAYERS
@@ -118,10 +114,6 @@ fun PartyRosterScreen(onStart: () -> Unit, onBack: () -> Unit) {
         SectionLabel("Age")
         Spacer(Modifier.height(8.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-            RpChip("Toddler", age == AgeBand.TODDLER, Modifier.weight(1f), accent = RpAmber) {
-                age = AgeBand.TODDLER
-                if (!supervisionAcked) showSupervisionDialog = true
-            }
             RpChip("Early", age == AgeBand.EARLY, Modifier.weight(1f), accent = RpAmber) { age = AgeBand.EARLY }
             RpChip("Middle", age == AgeBand.MIDDLE, Modifier.weight(1f), accent = RpAmber) { age = AgeBand.MIDDLE }
             RpChip("Older", age == AgeBand.OLDER, Modifier.weight(1f), accent = RpAmber) { age = AgeBand.OLDER }
@@ -143,10 +135,6 @@ fun PartyRosterScreen(onStart: () -> Unit, onBack: () -> Unit) {
                         error = "Need at least $minCount ${noun}s"
                         return@RpButton
                     }
-                    if (age == AgeBand.TODDLER && !supervisionAcked) {
-                        showSupervisionDialog = true
-                        return@RpButton
-                    }
                     val entrants = trimmed.mapIndexed { i, n ->
                         Entrant(id = "e$i", name = n, colorTag = PARTY_PALETTE[i % PARTY_PALETTE.size])
                     }
@@ -157,21 +145,6 @@ fun PartyRosterScreen(onStart: () -> Unit, onBack: () -> Unit) {
                 modifier = Modifier.weight(1f)
             )
         }
-    }
-
-    if (showSupervisionDialog) {
-        AlertDialog(
-            onDismissRequest = { showSupervisionDialog = false },
-            title = { Text("Toddler mode") },
-            text = { Text("Please stay nearby and supervise play. RealPlay uses the camera to watch the room, not the child.") },
-            confirmButton = {
-                Button(onClick = {
-                    ToddlerSupervision.acknowledge(context)
-                    supervisionAcked = true
-                    showSupervisionDialog = false
-                }) { Text("I understand") }
-            }
-        )
     }
 }
 

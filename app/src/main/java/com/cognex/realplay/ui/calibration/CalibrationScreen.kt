@@ -7,12 +7,10 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -24,6 +22,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -31,8 +30,14 @@ import com.cognex.realplay.camera.CameraController
 import com.cognex.realplay.perception.ObjectDetectionPipeline
 import com.cognex.realplay.ui.camera.CameraPermissionGate
 import com.cognex.realplay.ui.camera.CameraPreview
+import com.cognex.realplay.ui.common.RpButton
+import com.cognex.realplay.ui.common.RpChip
+import com.cognex.realplay.ui.common.RpOutlinedButton
 import com.cognex.realplay.ui.overlay.OverlayCanvas
 import com.cognex.realplay.ui.overlay.OverlayDetection
+import com.cognex.realplay.ui.theme.RpNavyDeep
+import com.cognex.realplay.ui.theme.RpRadius
+import com.cognex.realplay.ui.theme.RpSpace
 import com.cognex.realplay.world.ColorTag
 import com.cognex.realplay.world.RichnessBranch
 import com.cognex.realplay.world.SceneCapabilityReport
@@ -104,7 +109,13 @@ fun CalibrationScreen(onReady: () -> Unit, onBack: () -> Unit) {
                 detections = overlayDetections
             )
 
-            // Top readout — FPS + analysis geometry + object count + frame quality.
+            // Top scrim + FPS readout — FPS + analysis geometry + object count + frame quality.
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(120.dp)
+                    .background(Brush.verticalGradient(listOf(Color(0xCC000000), Color.Transparent)))
+            )
             val info = analysisInfo
             val readout = buildString {
                 append("FPS ")
@@ -124,8 +135,8 @@ fun CalibrationScreen(onReady: () -> Unit, onBack: () -> Unit) {
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .padding(top = 24.dp)
-                    .background(Color(0xAA000000), RoundedCornerShape(8.dp))
-                    .padding(horizontal = 12.dp, vertical = 6.dp)
+                    .background(RpNavyDeep.copy(alpha = 0.7f), RoundedCornerShape(RpRadius.md))
+                    .padding(horizontal = RpSpace.md, vertical = RpSpace.sm)
             )
 
             // Dev capability panel (§S3.5.4) — every richness term, active branch, player terms,
@@ -138,48 +149,45 @@ fun CalibrationScreen(onReady: () -> Unit, onBack: () -> Unit) {
                     color = Color.White,
                     modifier = Modifier
                         .align(Alignment.TopStart)
-                        .padding(start = 12.dp, top = 96.dp)
-                        .background(Color(0xAA000000), RoundedCornerShape(8.dp))
-                        .padding(horizontal = 10.dp, vertical = 8.dp)
+                        .padding(start = RpSpace.md, top = 96.dp)
+                        .background(RpNavyDeep.copy(alpha = 0.75f), RoundedCornerShape(RpRadius.md))
+                        .padding(horizontal = RpSpace.sm + RpSpace.xs, vertical = RpSpace.sm)
                 )
             }
 
-            // Bottom controls.
+            // Bottom scrim + controls.
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .height(220.dp)
+                    .background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xE6000000))))
+            )
             Column(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
-                    .padding(24.dp),
+                    .padding(RpSpace.lg),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FilterChip(
-                        selected = showCalibration,
-                        onClick = { showCalibration = !showCalibration },
-                        label = { Text("Calibration") }
-                    )
-                    FilterChip(
-                        selected = showCapability,
-                        onClick = { showCapability = !showCapability },
-                        label = { Text("Capability") }
-                    )
+                    RpChip("Calibration", showCalibration, Modifier.weight(1f)) { showCalibration = !showCalibration }
+                    RpChip("Capability", showCapability, Modifier.weight(1f)) { showCapability = !showCapability }
                 }
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 12.dp),
+                        .padding(top = RpSpace.md - RpSpace.xs),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    OutlinedButton(
-                        onClick = onBack,
-                        modifier = Modifier.weight(1f)
-                    ) { Text("Back") }
+                    RpOutlinedButton(text = "Back", onClick = onBack, modifier = Modifier.weight(1f))
                     val usable = world.quality.good && world.objects.isNotEmpty()
-                    Button(
+                    RpButton(
+                        text = if (usable) "Ready" else "Get set\u2026",
                         onClick = { showCapabilityCard = true },
                         enabled = usable,
                         modifier = Modifier.weight(1f)
-                    ) { Text(if (usable) "Ready" else "Get set…") }
+                    )
                 }
             }
 

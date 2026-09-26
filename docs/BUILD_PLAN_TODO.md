@@ -11,7 +11,8 @@ Cross-references: Architecture §13 (stages/gates), §7 (generators), §25–§2
 ## Status at a glance
 
 > **Current position (2026-09-27):** S0–S10 complete + DQ + v3.6-A + v3.6-B + v3.6-C + UX design
-> system pass. **NEXT: finish UX screen-by-screen polish (Calibration/Game deferred), then S12.**
+> system pass (all core screens incl. Calibration/Game) + a VR concept preview (v3.6-D). **NEXT:
+> S12 hardening/freeze, then P2/real VR headset renderer if time remains.**
 > Full engineering context for a fresh machine/agent: **docs/CONTEXT_HANDOFF.md**.
 
 | Stage | Title | Status |
@@ -34,11 +35,11 @@ Cross-references: Architecture §13 (stages/gates), §7 (generators), §25–§2
 | S13 | P2 bonuses | 🧊 |
 | v3.6-A | Presentation seam (present/, RenderModel, MobileTarget) | ✅ |
 | v3.6-B | Visual-first coaching (coach/, VisualCue) | ✅ |
-| v3.6-C | Party / Event mode (party/) | ✅ (device manual gate pending) |
-| **v3.6-D** | **VrTarget (spatial renderer)** | 🧊 |
-| **UX** | **Full UI/UX overhaul (design system + all screens)** | 🟡 design system + Home/ModeSelect/Settings/Result/Party done |
+| v3.6-C | Party / Event mode (party/) | ✅ (device manual gate pending; TODDLER removed from PARTY) |
+| **v3.6-D** | **VrTarget (spatial renderer)** | 🟡 concept preview shipped; real headset renderer still 🧊 |
+| **UX** | **Full UI/UX overhaul (design system + all screens)** | 🟡 all core screens done; Toddler skin variant pending |
 
-**Remaining work, in suggested order:** UX (Calibration/Game re-skin) → S12 → (S13/v3.6-D deferred).
+**Remaining work, in suggested order:** S12 → (S13 / real VR headset renderer deferred).
 S11 already shipped (activates only with a side-loaded Tier-B model). DQ has a model-side props
 fine-tune + a live-device fps/accuracy gate still open (can be done opportunistically).
 
@@ -302,13 +303,22 @@ verifiable skills — no new way to win. This is the crowd-engagement centrepiec
       322 unit tests green (was 294). No new `RuleId`, no new verifier, no new PASS path.
 - **GATE (§13 v3.6-C):** unit + build + install + launch passed. Remaining, device-only and manual:
       a real multi-player rotation on the table, the round countdown feels right, TEAM_VS_TEAM member
-      alternation reads clearly, TODDLER party pacing has no elimination/clock pressure.
+      alternation reads clearly. **PARTY never offers TODDLER** (removed 2026-09-27, product decision
+      — the roster screen clamps a carried-over TODDLER `SessionConfig.ageBand` up to EARLY); SOLO
+      still offers TODDLER via ModeSelect, unaffected.
 
-### v3.6-D · VrTarget 🧊  *(roadmap — designed, not built)*
-- [ ] `present/VrTarget.kt` — stereoscopic/spatial renderer consuming the identical RenderModel
-      (world-anchored highlights/ghosts, floating leaderboard). No perception/verifier change.
-- Honest Q&A: "We ship the seam; the engine is already presentation-agnostic — VR is another
-  target over the same scene model." Do not claim it works until it does.
+### v3.6-D · VrTarget 🟡  *(concept preview shipped 2026-09-27 — still NOT a real stereoscopic renderer)*
+- [x] `present/VrTarget.kt` — pure JVM: the one real piece of logic a VR target needs, an
+      object-size-to-parallax depth proxy (`parallaxFor`). Tested (`VrTargetTest`).
+- [x] `ui/present/VrPreviewScreen.kt` — an honest ON-PHONE demo: live camera + live detections
+      shown normally on top, and the SAME live detections split into two lens-shaped panes below
+      with a `VrTarget` parallax offset between them — answers "what would this look like in a
+      headset" without needing OpenXR/headset SDK integration. Entry point: Home → "VR Preview
+      (concept)". Presentation only — zero perception/verifier changes (invariant 21).
+- [ ] A REAL stereoscopic/headset renderer (OpenXR or similar) — still roadmap-only; this pass
+      intentionally did not attempt it (out of scope for a phone-only build).
+- Honest Q&A: "We ship the seam AND a same-phone concept preview of the idea; the real headset
+      renderer is still roadmap — that needs actual VR hardware/SDK integration."
 
 ---
 
@@ -333,17 +343,21 @@ surfaces (AI composer, PARTY multiplayer, visual-first coaching) feel first-clas
 
 **Screen-by-screen re-skin:**
 - [x] **Home** — hero gradient + aperture logo mark, rebalanced vertical rhythm (no more dead
-      space), PLAY / PARTY / Settings on the shared components, footer credit line.
+      space), PLAY / PARTY / Settings / VR Preview on the shared components, footer credit line.
 - [x] **ModeSelect** — mode cards and age/player chips now `RpCard`/`RpChip`; supervision dialog
       unchanged.
 - [x] **Settings** — grouped into `RpCard` sections (Device / Sound / AI composer / Developer) with
       the AI explainer text kept.
 - [x] **Result** — `RpScaffold` + `RpStatCard` trio + shared buttons; per-challenge rows unchanged
       (already bespoke and information-dense).
-- [x] **Party screens** — Roster/Handoff/Podium re-skinned on the same components.
-- [ ] **Calibration** — not yet touched this pass (live camera screen, higher regression risk).
-- [ ] **Game** — not yet touched this pass (HUD/ProgressRing/StepTracker/EvidencePanel/CoachingToast
-      untouched — live gameplay screen, deliberately deferred to reduce risk to a working demo).
+- [x] **Party screens** — Roster/Handoff/Podium re-skinned on the same components; TODDLER removed.
+- [x] **Calibration** — top/bottom scrims for legibility, dev readouts on theme tokens, Calibration/
+      Capability toggles now `RpChip`, Back/Ready now `RpOutlinedButton`/`RpButton`.
+- [x] **Game** — `HudBar`/`StepTracker`/`EvidencePanel`/`BreakSuggestionBanner`/`PartyRoundBadge` on
+      theme tokens + subtle shadows; `CoachingToast` now delegates to the shared `RpToast` (killed a
+      duplicate implementation); bottom Back/Retry/Finish now shared buttons. `ProgressRing`,
+      `BriefingOverlay`'s countdown, `OverlayCanvas`/`CueCanvas` coordinate math untouched (working,
+      camera-tied — lower value, higher risk to restyle further).
 - [ ] **Toddler skin** — no dedicated visual variant yet beyond existing supervision dialog + TTS.
 
 **Polish:**
@@ -352,8 +366,9 @@ surfaces (AI composer, PARTY multiplayer, visual-first coaching) feel first-clas
 - [ ] Consistent transitions between screens; loading/empty/error states. *(deferred)*
 - [ ] Haptics unified. *(deferred — sound cues already respect the mute setting)*
 - [ ] Accessibility pass (contrast, touch target sizes, TalkBack labels). *(deferred)*
-- **GATE:** partially met — the five re-skinned screens use the design system consistently and read
-      as one product; Calibration/Game/Toddler-specific visuals remain for a follow-up pass.
+- **GATE:** partially met — all core screens (Home/ModeSelect/Settings/Result/Party/Calibration/
+      Game) use the design system consistently and read as one product; only the Toddler-specific
+      visual variant remains for a follow-up pass.
 
 ---
 

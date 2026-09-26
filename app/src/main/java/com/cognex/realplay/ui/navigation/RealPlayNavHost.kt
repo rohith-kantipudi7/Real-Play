@@ -15,6 +15,7 @@ import com.cognex.realplay.ui.modeselect.ModeSelectScreen
 import com.cognex.realplay.ui.party.PartyHandoffScreen
 import com.cognex.realplay.ui.party.PartyPodiumScreen
 import com.cognex.realplay.ui.party.PartyRosterScreen
+import com.cognex.realplay.ui.present.VrPreviewScreen
 import com.cognex.realplay.ui.result.ResultScreen
 import com.cognex.realplay.ui.settings.SettingsScreen
 
@@ -36,6 +37,7 @@ fun RealPlayNavHost(
                     navController.navigate(Routes.MODE_SELECT)
                 },
                 onParty = { navController.navigate(Routes.PARTY_ROSTER) },
+                onVrPreview = { navController.navigate(Routes.VR_PREVIEW) },
                 onSettings = { navController.navigate(Routes.SETTINGS) }
             )
         }
@@ -106,6 +108,9 @@ fun RealPlayNavHost(
                     navController.popBackStack(Routes.HOME, inclusive = false)
                 }
             )
+        }
+        composable(Routes.VR_PREVIEW) {
+            VrPreviewScreen(onBack = { navController.popBackStack() })
         }
     }
 }

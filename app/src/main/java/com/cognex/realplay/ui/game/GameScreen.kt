@@ -17,9 +17,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -32,6 +30,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -51,9 +50,14 @@ import com.cognex.realplay.perception.ObjectDetectionPipeline
 import com.cognex.realplay.present.Hud
 import com.cognex.realplay.ui.camera.CameraPermissionGate
 import com.cognex.realplay.ui.camera.CameraPreview
+import com.cognex.realplay.ui.common.RpButton
+import com.cognex.realplay.ui.common.RpOutlinedButton
 import com.cognex.realplay.ui.overlay.CueCanvas
 import com.cognex.realplay.ui.overlay.OverlayCanvas
 import com.cognex.realplay.ui.present.MobileTarget
+import com.cognex.realplay.ui.theme.RpNavyDeep
+import com.cognex.realplay.ui.theme.RpNavyElevated
+import com.cognex.realplay.ui.theme.RpRadius
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -243,13 +247,14 @@ fun GameScreen(onFinish: () -> Unit, onBack: () -> Unit) {
                     .padding(24.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                OutlinedButton(onClick = onBack, modifier = Modifier.weight(1f)) { Text("Back") }
-                OutlinedButton(
+                RpOutlinedButton(text = "Back", onClick = onBack, modifier = Modifier.weight(1f))
+                RpOutlinedButton(
+                    text = "Retry (${ui.retriesLeft})",
                     onClick = { vm.retry() },
                     enabled = ui.retriesLeft > 0,
                     modifier = Modifier.weight(1f)
-                ) { Text("Retry (${ui.retriesLeft})") }
-                Button(onClick = { vm.finish() }, modifier = Modifier.weight(1f)) { Text("Finish") }
+                )
+                RpButton(text = "Finish", onClick = { vm.finish() }, modifier = Modifier.weight(1f))
             }
 
             // Pre-challenge briefing + countdown (on top of everything).
@@ -351,9 +356,11 @@ private fun BreakSuggestionBanner(onDismiss: () -> Unit) {
             .padding(top = 140.dp),
         contentAlignment = Alignment.TopCenter
     ) {
+        val shape = RoundedCornerShape(RpRadius.md)
         Row(
             modifier = Modifier
-                .background(Color(0xE6241A4D), RoundedCornerShape(14.dp))
+                .shadow(6.dp, shape, clip = false)
+                .background(RpNavyElevated.copy(alpha = 0.95f), shape)
                 .padding(horizontal = 18.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -364,7 +371,7 @@ private fun BreakSuggestionBanner(onDismiss: () -> Unit) {
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Medium
             )
-            OutlinedButton(onClick = onDismiss) { Text("Keep playing") }
+            RpOutlinedButton(text = "Keep playing", onClick = onDismiss)
         }
     }
 }
@@ -373,10 +380,12 @@ private fun BreakSuggestionBanner(onDismiss: () -> Unit) {
 @Composable
 private fun PartyRoundBadge(remainingMs: Long, modifier: Modifier = Modifier) {
     val seconds = (remainingMs / 1000L).coerceAtLeast(0L)
+    val shape = RoundedCornerShape(RpRadius.md)
     Box(
         modifier = modifier
             .padding(top = 24.dp, end = 16.dp)
-            .background(Color(0xB3000000), RoundedCornerShape(12.dp))
+            .shadow(4.dp, shape, clip = false)
+            .background(RpNavyDeep.copy(alpha = 0.8f), shape)
             .padding(horizontal = 14.dp, vertical = 8.dp)
     ) {
         Text(

@@ -10,9 +10,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.cognex.realplay.ui.theme.RpNavyDeep
+import com.cognex.realplay.ui.theme.RpRadius
 import com.cognex.realplay.verify.Evidence
 import com.cognex.realplay.verify.MeasurementDomain
 import kotlin.math.roundToInt
@@ -31,9 +34,11 @@ fun EvidencePanel(
     modifier: Modifier = Modifier
 ) {
     if (evidence.isEmpty()) return
+    val shape = RoundedCornerShape(RpRadius.sm)
     Column(
         modifier = modifier
-            .background(Color(0xAA161033), RoundedCornerShape(10.dp))
+            .shadow(3.dp, shape, clip = false)
+            .background(RpNavyDeep.copy(alpha = 0.9f), shape)
             .padding(horizontal = 14.dp, vertical = 10.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {

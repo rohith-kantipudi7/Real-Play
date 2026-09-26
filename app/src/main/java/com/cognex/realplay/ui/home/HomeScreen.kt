@@ -30,6 +30,7 @@ import com.cognex.realplay.ui.theme.RpOnDarkMuted
 fun HomeScreen(
     onPlay: () -> Unit,
     onParty: () -> Unit,
+    onVrPreview: () -> Unit,
     onSettings: () -> Unit
 ) {
     Box(modifier = Modifier.fillMaxSize()) {
@@ -78,6 +79,7 @@ fun HomeScreen(
             )
             Spacer(Modifier.height(12.dp))
             RpTextButton(text = "Settings", onClick = onSettings, modifier = Modifier.fillMaxWidth())
+            RpTextButton(text = "VR Preview (concept)", onClick = onVrPreview, modifier = Modifier.fillMaxWidth())
             Spacer(Modifier.weight(0.15f))
             Text(
                 text = "Offline-first · on-device · Team Cognex",
@@ -92,6 +94,6 @@ fun HomeScreen(
 @Composable
 private fun HomeScreenPreview() {
     RealPlayTheme {
-        HomeScreen(onPlay = {}, onParty = {}, onSettings = {})
+        HomeScreen(onPlay = {}, onParty = {}, onVrPreview = {}, onSettings = {})
     }
 }
