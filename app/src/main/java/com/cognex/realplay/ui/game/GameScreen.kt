@@ -32,6 +32,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -144,10 +145,13 @@ fun GameScreen(onFinish: () -> Unit, onBack: () -> Unit) {
             }
         }
 
-        // TTS is mandatory for TODDLER (§10): every instruction and hint is spoken, fire-and-forget.
+        // Read the game out loud at the start of every challenge, for all tiers (§3a). Coaching
+        // hints are still spoken for TODDLER only (§10).
         val toddler = SessionConfig.ageBand == AgeBand.TODDLER
-        LaunchedEffect(ui.instruction, ui.challengeIndex) {
-            if (toddler) narrator.speak(ui.instruction)
+        LaunchedEffect(ui.challengeIndex) {
+            if (ui.challengeIndex > 0 && ui.status != PlayStatus.COMPOSING) {
+                narrator.speak(ui.instruction)
+            }
         }
         LaunchedEffect(ui.coachingHint) {
             if (toddler) ui.coachingHint?.let { narrator.speak(it, interrupt = false) }
@@ -272,12 +276,18 @@ fun GameScreen(onFinish: () -> Unit, onBack: () -> Unit) {
                 message = model.hud.instruction
             )
 
-            // Success celebration.
+            // Success celebration — particle burst plus a calm "Level Complete" panel that holds
+            // for the full ~2s advance beat (§3a smooth transitions).
             SuccessBurst(
                 visible = model.hud.status == PlayStatus.PASSED,
                 perfect = model.hud.perfect,
                 gainedPoints = model.hud.lastGain,
                 triggerKey = if (model.hud.status == PlayStatus.PASSED) model.hud.challengeIndex else 0
+            )
+            LevelCompleteOverlay(
+                visible = model.hud.status == PlayStatus.PASSED,
+                perfect = model.hud.perfect,
+                gainedPoints = model.hud.lastGain
             )
 
             // TODDLER-only break suggestion after 5 continuous minutes (§10 rule 8) — a gentle
@@ -443,6 +453,60 @@ private fun ComposingOverlay(visible: Boolean, message: String) {
                     style = MaterialTheme.typography.bodyMedium
                 )
             }
+        }
+    }
+}
+
+/**
+ * The "Level Complete" beat (§3a) — a calm panel that scales/fades in on a pass and holds for the
+ * full ~2s advance window, so completing a game feels deliberate and celebratory instead of rushing
+ * straight into the next one. Sits above the [SuccessBurst] particles.
+ */
+@Composable
+private fun LevelCompleteOverlay(visible: Boolean, perfect: Boolean, gainedPoints: Int) {
+    val appear by androidx.compose.animation.core.animateFloatAsState(
+        targetValue = if (visible) 1f else 0f,
+        animationSpec = androidx.compose.animation.core.tween(
+            durationMillis = 420,
+            easing = androidx.compose.animation.core.FastOutSlowInEasing
+        ),
+        label = "levelComplete"
+    )
+    if (appear <= 0.01f) return
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xFF0B1220).copy(alpha = 0.80f * appear)),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+            modifier = Modifier.graphicsLayer {
+                alpha = appear
+                scaleX = 0.85f + 0.15f * appear
+                scaleY = 0.85f + 0.15f * appear
+            }
+        ) {
+            Text(
+                text = if (perfect) "PERFECT!" else "LEVEL COMPLETE",
+                color = if (perfect) Color(0xFFFFD24B) else Color(0xFF25E0C8),
+                style = MaterialTheme.typography.headlineLarge,
+                fontWeight = FontWeight.Black
+            )
+            if (gainedPoints > 0) {
+                Text(
+                    text = "+$gainedPoints points",
+                    color = Color.White,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+            Text(
+                text = "Get ready for the next one…",
+                color = Color(0xFF9FB2C4),
+                style = MaterialTheme.typography.bodyLarge
+            )
         }
     }
 }

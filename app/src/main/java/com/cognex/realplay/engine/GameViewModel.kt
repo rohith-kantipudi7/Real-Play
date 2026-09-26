@@ -115,6 +115,9 @@ class GameViewModel(
     private var composeJob: Job? = null
     /** When the between-challenge settle window began (frame clock), 0 when not waiting. */
     private var readySinceMs = 0L
+    /** Wall-clock time to hold the finished level's celebration until, before composing the next
+     *  game (§3a smooth transitions). 0 when not holding. */
+    private var advanceAtMs = 0L
 
     private val _ui = MutableStateFlow(GameUiState.INITIAL)
     val ui: StateFlow<GameUiState> = _ui.asStateFlow()
@@ -198,6 +201,15 @@ class GameViewModel(
     private fun process(world: WorldState, cap: SceneCapability) {
         if (sessionOver) return
         maybeSuggestBreak()
+
+        // Hold on the completed level's celebration for a calm beat before advancing (§3a).
+        if (advanceAtMs != 0L) {
+            if (System.currentTimeMillis() < advanceAtMs) return
+            advanceAtMs = 0L
+            mission = null
+            selection = null
+            sm.reset(GameState.IDLE)
+        }
 
         // No active mission: settle the scene, compose the next game up-front, then begin it. While
         // the compose coroutine is in flight the UI shows the COMPOSING phase (§6.5 v3.7).
@@ -419,10 +431,8 @@ class GameViewModel(
             timeFraction = null,
             retriesLeft = retriesLeft
         )
-        // Advance to the next challenge on the following frame.
-        mission = null
-        selection = null
-        sm.reset(GameState.IDLE)
+        // Hold on the "Level Complete" celebration for a beat before composing the next game (§3a).
+        advanceAtMs = System.currentTimeMillis() + LEVEL_DONE_MS
     }
 
     private fun onTimeout(world: WorldState, spec: ChallengeSpec) {
@@ -468,9 +478,8 @@ class GameViewModel(
             timeFraction = null,
             retriesLeft = retriesLeft
         )
-        mission = null
-        selection = null
-        sm.reset(GameState.IDLE)
+        // Same calm hold on a timeout before the next game composes (§3a).
+        advanceAtMs = System.currentTimeMillis() + LEVEL_DONE_MS
     }
 
     private fun publishPlaying(spec: ChallengeSpec, tick: MissionRunner.Tick, elapsedMs: Long) {
@@ -543,5 +552,7 @@ class GameViewModel(
         const val BREAK_SUGGEST_MS = 5 * 60_000L
         /** Max time to wait for the scene to show objects before composing anyway (empty table → G0). */
         const val SETTLE_MS = 1_200L
+        /** How long the "Level Complete" celebration holds before the next game composes (§3a). */
+        const val LEVEL_DONE_MS = 2_000L
     }
 }
