@@ -33,7 +33,7 @@ fun SettingsScreen(
     performanceProfile: PerformanceProfile,
     onBack: () -> Unit
 ) {
-    RpScaffold(title = "Settings") {
+    RpScaffold(title = "Settings", subtitle = "Device, sound, and the AI that builds your games.") {
         SectionLabel("Device")
         Spacer(Modifier.height(8.dp))
         RpCard(modifier = Modifier.fillMaxWidth()) {
@@ -76,10 +76,10 @@ fun SettingsScreen(
                     divider = false
                 )
                 Text(
-                    text = "Tries a cloud model first (if configured), then the side-loaded on-device " +
-                        "Gemma model, then falls back to the built-in composer — always the same offline " +
-                        "fallback if neither is available or reachable. The AI only arranges verifiable " +
-                        "skills and wording; it never decides pass or fail, and the game is fully " +
+                    text = "Every game is built for your table by a cloud model first, then the " +
+                        "on-device model, then a built-in composer — you'll see \u201cCreating your " +
+                        "game\u2026\u201d for a moment while it does. The AI only arranges verifiable " +
+                        "skills and wording; it never decides pass or fail, and the game stays fully " +
                         "playable offline with this switched off.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,

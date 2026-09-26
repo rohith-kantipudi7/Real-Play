@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -25,8 +26,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.cognex.realplay.camera.AnalysisInfo
@@ -90,7 +93,29 @@ fun VrPreviewScreen(onBack: () -> Unit) {
                     modifier = Modifier.fillMaxSize(),
                     detections = baseDetections.map { it.first }
                 )
-                Caption(text = "LIVE CAMERA", modifier = Modifier.align(Alignment.TopStart).padding(12.dp))
+                // Header overlay — drawn over the camera (a SurfaceView would hide a row placed
+                // above it), so the concept reads clearly as an intentional showcase.
+                Column(
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .fillMaxWidth()
+                        .background(Brush.verticalGradient(listOf(Color(0xE6000000), Color.Transparent)))
+                        .statusBarsPadding()
+                        .padding(horizontal = 20.dp, vertical = 12.dp)
+                ) {
+                    Text(
+                        text = "VR Preview",
+                        color = RpCyan,
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "How RealPlay could look through a headset — the same live detections, split into a stereo pair.",
+                        color = RpOnDarkMuted,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+                Caption(text = "LIVE CAMERA", modifier = Modifier.align(Alignment.BottomStart).padding(12.dp))
             }
 
             // The concept split — the SAME detections, arranged as a stereo pair via VrTarget.

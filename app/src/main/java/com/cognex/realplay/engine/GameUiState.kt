@@ -4,7 +4,7 @@ import com.cognex.realplay.challenge.RankedCandidate
 import com.cognex.realplay.verify.Evidence
 
 /** The play-phase the UI renders (Architecture §13 S5, §S6 refines the visuals). */
-enum class PlayStatus { SELECTING, PLAYING, PASSED, FAILED, TIMED_OUT, COACHING }
+enum class PlayStatus { SELECTING, COMPOSING, PLAYING, PASSED, FAILED, TIMED_OUT, COACHING }
 
 /**
  * The ONE immutable UI state the [GameViewModel] exposes (Architecture §3.3 threading contract,

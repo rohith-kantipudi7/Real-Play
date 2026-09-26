@@ -47,7 +47,7 @@ fun ResultScreen(onPlayAgain: () -> Unit, onHome: () -> Unit) {
     val best = remember { SessionResults.bestStreak }
     val passed = remember { results.count { it.passed } }
 
-    RpScaffold(title = "Great playing!") {
+    RpScaffold(title = "Great playing!", subtitle = "Here's how this session went.") {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp)

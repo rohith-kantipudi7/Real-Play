@@ -28,6 +28,7 @@ import com.cognex.realplay.verify.VerifierRegistry
 import com.cognex.realplay.world.SceneCapability
 import com.cognex.realplay.world.WorldState
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -103,14 +104,17 @@ class GameViewModel(
     /** The latest difficulty "why" string (§8, §13 S9), surfaced to the dev overlay via GameUiState. */
     private var difficultyExplanation = ""
 
-    /** True once the player has made real progress on the current mission (a gate has samples). */
-    private var started = false
-
-    /** Speculative composer plumbing (§6.5). Applied on the frame thread only, so no data races. */
-    private data class Composed(val index: Int, val key: String, val result: SelectionResult)
-    @Volatile private var pendingComposed: Composed? = null
-    private var composedForKey: String? = null
-    private var composerApplied = false
+    /**
+     * Compose-first game flow (§6.5 v3.7). Between challenges the engine settles the scene, then
+     * composes the ACTUAL game up-front on [composeJob] while showing a "Creating your game…" phase,
+     * so the player sees the LLM's game rather than a deterministic placeholder that later swaps.
+     * [pendingStart] is the resolved [SelectionResult] the frame loop begins on its next tick.
+     */
+    @Volatile private var composing = false
+    @Volatile private var pendingStart: SelectionResult? = null
+    private var composeJob: Job? = null
+    /** When the between-challenge settle window began (frame clock), 0 when not waiting. */
+    private var readySinceMs = 0L
 
     private val _ui = MutableStateFlow(GameUiState.INITIAL)
     val ui: StateFlow<GameUiState> = _ui.asStateFlow()
@@ -195,20 +199,20 @@ class GameViewModel(
         if (sessionOver) return
         maybeSuggestBreak()
 
+        // No active mission: settle the scene, compose the next game up-front, then begin it. While
+        // the compose coroutine is in flight the UI shows the COMPOSING phase (§6.5 v3.7).
         if (mission == null) {
-            startNewChallenge(world, cap)
+            if (composing) return
+            val ready = pendingStart
+            if (ready != null) {
+                pendingStart = null
+                beginPlaying(ready, world)
+                return
+            }
+            prepareNextChallenge(world, cap)
             return
         }
         if (sm.state != GameState.PLAYING) return
-
-        // Before the player has done anything, keep the pick current as the scene populates — this
-        // upgrades the first-frame G0 fallback to a real game once objects/players are detected, and
-        // adapts if the scene changes (§13 S5 "removing an object mid-scan adapts"). Once real
-        // progress exists we lock the choice so the gate can accumulate.
-        if (!started) {
-            consumePendingComposed()
-            if (!composerApplied) maybeUpgrade(world, cap)
-        }
 
         val runner = mission ?: return
         val spec = selection?.spec ?: return
@@ -217,7 +221,6 @@ class GameViewModel(
 
         val tick = runner.onFrame(world, world.timestampMs)
         captureEvidence(tick.outcome)
-        if (tick.stepFired || tick.stepProgress > 0f) started = true
 
         // Plan the visual-first coaching cues for the active step from the SAME spec the verifier
         // judges (§26), resolved to drawable overlays against this frame's world. Presentation only.
@@ -273,89 +276,76 @@ class GameViewModel(
     }
 
     /** Swaps the challenge only when a different generator now wins (preserves gate progress). */
-    private fun maybeUpgrade(world: WorldState, cap: SceneCapability) {
-        val ctx = buildContext(cap)
-        val result = registry.select(world, cap, ctx, selectionMode)
-        if (result.winnerId != selection?.winnerId) {
-            selection = result
-            mission = MissionRunner(result.spec, verifierRegistry, poseBaselineFor(result.spec))
-            startTs = 0L
-            RpLog.i(RpLog.Tag.ENGINE, "Upgraded to ${result.winnerId} (${result.spec.type}) budget=${result.stepBudget}")
+    private fun prepareNextChallenge(world: WorldState, cap: SceneCapability) {
+        // Let the scene settle so we don't build a game from an empty first frame after a pass.
+        val hasScene = world.objects.isNotEmpty() || world.players.isNotEmpty()
+        if (readySinceMs == 0L) readySinceMs = world.timestampMs
+        val waited = world.timestampMs - readySinceMs
+        if (!hasScene && waited < SETTLE_MS) {
+            publishComposing("Looking at your play space…")
+            return
         }
-        requestComposeIfNeeded(world, cap, ctx, result)
-    }
 
-    /**
-     * Fires ONE speculative composer request per (challenge, winner) on its own coroutine (§3.3).
-     * Never blocks the frame loop; the result is picked up on a later frame by [consumePendingComposed].
-     */
-    private fun requestComposeIfNeeded(
-        world: WorldState,
-        cap: SceneCapability,
-        ctx: GenerationContext,
-        deterministic: SelectionResult
-    ) {
-        if (!composer.active()) return
-        val key = "$challengeIndex:${deterministic.winnerId}"
-        if (key == composedForKey) return
-        composedForKey = key
-        val idx = challengeIndex
-        viewModelScope.launch(Dispatchers.Default) {
-            val composed = composer.compose(world, cap, ctx, deterministic)
-            if (composed !== deterministic) pendingComposed = Composed(idx, key, composed)
-        }
-    }
-
-    /** Applies the latest validated composer result, on the frame thread, before the player starts. */
-    private fun consumePendingComposed() {
-        val p = pendingComposed ?: return
-        pendingComposed = null
-        if (sessionOver || started) return
-        if (p.index != challengeIndex || p.key != composedForKey) return
-        selection = p.result
-        mission = MissionRunner(p.result.spec, verifierRegistry, poseBaselineFor(p.result.spec))
-        startTs = 0L
-        composerApplied = true
-        RpLog.i(RpLog.Tag.AI, "composer applied ${p.result.winnerId} (${p.result.spec.type})")
-        _ui.value = _ui.value.copy(
-            instruction = p.result.spec.instruction,
-            winnerId = p.result.winnerId,
-            winnerType = p.result.spec.type.name
-        )
-    }
-
-    private fun startNewChallenge(world: WorldState, cap: SceneCapability) {
-        // Update the previous-tier memory once per challenge (for skill-tier hysteresis, §8).
         session.previousTier = Difficulty.skillTier(session.rating, session.previousTier)
         val ctx = buildContext(cap)
+        val deterministic = registry.select(world, cap, ctx, selectionMode)
 
+        // No cloud/on-device model available → play the deterministic game immediately.
+        if (!composer.active()) {
+            beginPlaying(deterministic, world)
+            return
+        }
+
+        // Compose the ACTUAL game up-front so the player sees the LLM's game rather than a
+        // deterministic placeholder that later swaps (§6.5 v3.7). compose() returns the deterministic
+        // result unchanged on any failure, so this always resolves to a valid, verifiable game.
+        composing = true
+        publishComposing("Creating your game…")
+        composeJob = viewModelScope.launch(Dispatchers.Default) {
+            val composed = runCatching { composer.compose(world, cap, ctx, deterministic) }
+                .getOrDefault(deterministic)
+            pendingStart = composed
+            composing = false
+        }
+    }
+
+    /** Begins the resolved [result] as a live mission and publishes the first PLAYING frame. */
+    private fun beginPlaying(result: SelectionResult, world: WorldState) {
+        readySinceMs = 0L
         challengeIndex++
         sm.reset(GameState.IDLE)
         sm.transition(GameState.SELECTING)
-        val result = registry.select(world, cap, ctx, selectionMode)
         selection = result
         session.pushType(result.spec.type)
         mission = MissionRunner(result.spec, verifierRegistry, poseBaselineFor(result.spec))
         startTs = 0L
         retriesLeft = MAX_RETRIES
         hintsUsed = 0
-        started = false
         lastMeasured = null
         lastRequired = null
         lastEvidence = emptyList()
-        pendingComposed = null
-        composedForKey = null
-        composerApplied = false
-
         _cues.value = emptyList()
 
         sm.transition(GameState.INSTRUCTION)
         sm.transition(GameState.PLAYING)
-        RpLog.i(RpLog.Tag.ENGINE, "Selected ${result.winnerId} (${result.spec.type}) tier=${ctx.effectiveTier} budget=${result.stepBudget}")
+        RpLog.i(RpLog.Tag.ENGINE, "Playing ${result.winnerId} (${result.spec.type}) budget=${result.stepBudget}")
         RpLog.i(RpLog.Tag.ENGINE, "Difficulty: $difficultyExplanation")
         logRankedCandidates(result)
         publishPlaying(result.spec, firstTick(result.spec), 0L)
-        requestComposeIfNeeded(world, cap, ctx, result)
+    }
+
+    /** Publishes the between-challenge COMPOSING phase with a friendly [message]. */
+    private fun publishComposing(message: String) {
+        if (_ui.value.status == PlayStatus.COMPOSING && _ui.value.instruction == message) return
+        _ui.value = _ui.value.copy(
+            status = PlayStatus.COMPOSING,
+            instruction = message,
+            stepProgress = 0f,
+            coachingHint = null,
+            evidence = emptyList(),
+            timeRemainingMs = null,
+            timeFraction = null
+        )
     }
 
     /**
@@ -551,5 +541,7 @@ class GameViewModel(
     private companion object {
         const val MAX_RETRIES = 2
         const val BREAK_SUGGEST_MS = 5 * 60_000L
+        /** Max time to wait for the scene to show objects before composing anyway (empty table → G0). */
+        const val SETTLE_MS = 1_200L
     }
 }

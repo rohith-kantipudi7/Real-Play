@@ -33,8 +33,8 @@ import com.cognex.realplay.party.PartyFormat
 import com.cognex.realplay.party.PartySession
 import com.cognex.realplay.party.Roster
 import com.cognex.realplay.ui.common.RpButton
-import com.cognex.realplay.ui.common.RpCard
 import com.cognex.realplay.ui.common.RpChip
+import com.cognex.realplay.ui.common.RpOptionCard
 import com.cognex.realplay.ui.common.RpOutlinedButton
 import com.cognex.realplay.ui.common.RpScaffold
 import com.cognex.realplay.ui.theme.RpAmber
@@ -66,14 +66,14 @@ fun PartyRosterScreen(onStart: () -> Unit, onBack: () -> Unit) {
     val maxCount = if (kind == Roster.EntrantKind.TEAM) Roster.MAX_TEAMS else Roster.MAX_PLAYERS
     val noun = if (kind == Roster.EntrantKind.TEAM) "team" else "player"
 
-    RpScaffold(title = "Party mode") {
+    RpScaffold(title = "Party mode", subtitle = "Pass the phone around — the AI makes a fresh game for every turn.") {
         SectionLabel("Format")
         Spacer(Modifier.height(8.dp))
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            FormatRow("Relay", "Each player takes one quick turn", format == PartyFormat.RELAY) { format = PartyFormat.RELAY }
-            FormatRow("Head-to-head", "Two players race the same challenge", format == PartyFormat.HEAD_TO_HEAD) { format = PartyFormat.HEAD_TO_HEAD }
-            FormatRow("Team vs team", "Members alternate, scores add up", format == PartyFormat.TEAM_VS_TEAM) { format = PartyFormat.TEAM_VS_TEAM }
-            FormatRow("Co-op streak", "The whole room shares one streak", format == PartyFormat.CO_OP_STREAK) { format = PartyFormat.CO_OP_STREAK }
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            FormatRow("\uD83C\uDFC3", "Relay", "Each player takes one quick turn", format == PartyFormat.RELAY) { format = PartyFormat.RELAY }
+            FormatRow("\u2694\uFE0F", "Head-to-head", "Two players race the same challenge", format == PartyFormat.HEAD_TO_HEAD) { format = PartyFormat.HEAD_TO_HEAD }
+            FormatRow("\uD83D\uDC65", "Team vs team", "Members alternate, scores add up", format == PartyFormat.TEAM_VS_TEAM) { format = PartyFormat.TEAM_VS_TEAM }
+            FormatRow("\uD83D\uDD25", "Co-op streak", "The whole room shares one streak", format == PartyFormat.CO_OP_STREAK) { format = PartyFormat.CO_OP_STREAK }
         }
 
         Spacer(Modifier.height(RpSpace.lg))
@@ -157,15 +157,13 @@ private fun SectionLabel(text: String) {
 }
 
 @Composable
-private fun FormatRow(title: String, subtitle: String, selected: Boolean, onClick: () -> Unit) {
-    RpCard(
+private fun FormatRow(icon: String, title: String, subtitle: String, selected: Boolean, onClick: () -> Unit) {
+    RpOptionCard(
+        icon = icon,
+        title = title,
+        subtitle = subtitle,
         selected = selected,
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(modifier = Modifier.padding(horizontal = 18.dp, vertical = 14.dp)) {
-            Text(title, style = MaterialTheme.typography.titleMedium, color = RpOnDark, fontWeight = FontWeight.SemiBold)
-            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = RpOnDarkMuted)
-        }
-    }
+        accent = RpAmber,
+        onClick = onClick
+    )
 }

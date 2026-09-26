@@ -266,6 +266,12 @@ fun GameScreen(onFinish: () -> Unit, onBack: () -> Unit) {
                 onGo = { sound.start() }
             )
 
+            // "Creating your game…" — shown while the cloud/on-device model composes the next game.
+            ComposingOverlay(
+                visible = model.hud.status == PlayStatus.COMPOSING,
+                message = model.hud.instruction
+            )
+
             // Success celebration.
             SuccessBurst(
                 visible = model.hud.status == PlayStatus.PASSED,
@@ -334,6 +340,7 @@ private fun GamePlayColumn(hud: Hud, modifier: Modifier = Modifier) {
 
 private fun statusWord(status: PlayStatus): String = when (status) {
     PlayStatus.SELECTING -> "…"
+    PlayStatus.COMPOSING -> "…"
     PlayStatus.PLAYING -> "GO"
     PlayStatus.PASSED -> "\u2713"
     PlayStatus.FAILED -> "\u2717"
@@ -395,6 +402,48 @@ private fun PartyRoundBadge(remainingMs: Long, modifier: Modifier = Modifier) {
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Black
         )
+    }
+}
+
+/**
+ * The "Creating your game…" overlay (Architecture §6.5 v3.7) shown while the cloud/on-device model
+ * composes the next game — a calm full-screen scrim with a spinner that disappears the instant the
+ * briefing countdown begins.
+ */
+@Composable
+private fun ComposingOverlay(visible: Boolean, message: String) {
+    androidx.compose.animation.AnimatedVisibility(
+        visible = visible,
+        enter = androidx.compose.animation.fadeIn(),
+        exit = androidx.compose.animation.fadeOut()
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color(0xE60B1220)),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(20.dp)
+            ) {
+                androidx.compose.material3.CircularProgressIndicator(
+                    color = Color(0xFF25E0C8),
+                    strokeWidth = 3.dp
+                )
+                Text(
+                    text = message,
+                    color = Color.White,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = "tailored to what's on your table",
+                    color = Color(0xFF8CA0B3),
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
+        }
     }
 }
 

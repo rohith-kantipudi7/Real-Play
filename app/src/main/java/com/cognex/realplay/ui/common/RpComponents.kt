@@ -10,12 +10,15 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -57,6 +60,7 @@ import com.cognex.realplay.ui.theme.RpSpace
 fun RpScaffold(
     title: String,
     modifier: Modifier = Modifier,
+    subtitle: String? = null,
     scrollable: Boolean = true,
     content: @Composable ColumnScope.() -> Unit
 ) {
@@ -65,10 +69,15 @@ fun RpScaffold(
         modifier = modifier
             .fillMaxSize()
             .background(Brush.verticalGradient(listOf(RpNavyElevated, RpNavy, RpNavyDeep)))
+            .statusBarsPadding()
             .then(scroll)
             .padding(RpSpace.lg)
     ) {
         Text(title, style = MaterialTheme.typography.headlineMedium, color = RpCyan, fontWeight = FontWeight.Bold)
+        if (subtitle != null) {
+            Spacer(Modifier.height(RpSpace.xs))
+            Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = RpOnDarkMuted)
+        }
         Spacer(Modifier.height(RpSpace.lg - RpSpace.xs))
         content()
     }
@@ -192,6 +201,73 @@ fun RpChip(label: String, selected: Boolean, modifier: Modifier = Modifier, acce
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(label, color = if (selected) accent else RpOnDarkMuted, style = MaterialTheme.typography.labelLarge)
+    }
+}
+
+/**
+ * A premium selectable option row: a leading emoji [icon] in a tinted tile, a [title] + [subtitle],
+ * and a trailing selection ring. Used for the mode and party-format pickers so they read as a real
+ * product choice, not a plain list. [enabled] false dims it and shows [disabledNote] as the subtitle.
+ */
+@Composable
+fun RpOptionCard(
+    icon: String,
+    title: String,
+    subtitle: String,
+    selected: Boolean,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    accent: Color = RpCyan,
+    disabledNote: String? = null,
+    onClick: () -> Unit
+) {
+    RpCard(
+        selected = selected,
+        enabled = enabled,
+        accent = accent,
+        onClick = onClick,
+        modifier = modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = RpSpace.md, vertical = RpSpace.md),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(RpSpace.md)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(RoundedCornerShape(RpRadius.md))
+                    .background((if (selected) accent else RpOnDarkMuted).copy(alpha = 0.14f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(icon, style = MaterialTheme.typography.headlineSmall)
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    title,
+                    style = MaterialTheme.typography.titleLarge,
+                    color = if (enabled) RpOnDark else RpOnDarkMuted,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    if (!enabled && disabledNote != null) disabledNote else subtitle,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = if (enabled) RpOnDarkMuted else RpAmber
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .size(24.dp)
+                    .clip(RoundedCornerShape(50))
+                    .background(if (selected) accent else Color.Transparent)
+                    .border(2.dp, if (selected) accent else Color(0x33FFFFFF), RoundedCornerShape(50)),
+                contentAlignment = Alignment.Center
+            ) {
+                if (selected) {
+                    Text("\u2713", color = RpNavyDeep, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Black)
+                }
+            }
+        }
     }
 }
 

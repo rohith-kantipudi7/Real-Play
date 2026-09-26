@@ -27,13 +27,12 @@ import com.cognex.realplay.engine.SessionConfig
 import com.cognex.realplay.engine.ToddlerSupervision
 import com.cognex.realplay.perception.AssetModelResolver
 import com.cognex.realplay.ui.common.RpButton
-import com.cognex.realplay.ui.common.RpCard
 import com.cognex.realplay.ui.common.RpChip
+import com.cognex.realplay.ui.common.RpOptionCard
 import com.cognex.realplay.ui.common.RpOutlinedButton
 import com.cognex.realplay.ui.common.RpScaffold
 import com.cognex.realplay.ui.theme.RpAmber
 import com.cognex.realplay.ui.theme.RpCyan
-import com.cognex.realplay.ui.theme.RpOnDark
 import com.cognex.realplay.ui.theme.RpOnDarkMuted
 import com.cognex.realplay.ui.theme.RpSpace
 
@@ -59,27 +58,34 @@ fun ModeSelectScreen(onContinue: () -> Unit, onBack: () -> Unit) {
     var supervisionAcked by remember { mutableStateOf(ToddlerSupervision.isAcknowledged(context)) }
     var showSupervisionDialog by remember { mutableStateOf(false) }
 
-    RpScaffold(title = "Choose your game") {
+    RpScaffold(title = "Choose your game", subtitle = "Set it up once — the AI builds each game from what your camera sees.") {
         SectionLabel("Mode")
         Spacer(Modifier.height(8.dp))
-        RpCard(
+        RpOptionCard(
+            icon = "\uD83E\uDDE9",
+            title = "Objects",
+            subtitle = "Move and arrange real things",
             selected = mode == PlayMode.OBJECTS,
-            onClick = { mode = PlayMode.OBJECTS },
-            modifier = Modifier.fillMaxWidth().height(84.dp)
-        ) { ModeCardBody("Objects", "Move and arrange real things", enabled = true) }
+            onClick = { mode = PlayMode.OBJECTS }
+        )
         Spacer(Modifier.height(10.dp))
-        RpCard(
+        RpOptionCard(
+            icon = "\uD83E\uDD38",
+            title = "Body",
+            subtitle = "Poses and movement",
             selected = mode == PlayMode.BODY,
             enabled = poseAvailable,
-            onClick = { mode = PlayMode.BODY },
-            modifier = Modifier.fillMaxWidth().height(84.dp)
-        ) { ModeCardBody("Body", if (poseAvailable) "Poses and movement" else "needs a person", enabled = poseAvailable) }
+            disabledNote = "needs a person in view",
+            onClick = { mode = PlayMode.BODY }
+        )
         Spacer(Modifier.height(10.dp))
-        RpCard(
+        RpOptionCard(
+            icon = "\u2728",
+            title = "Mixed",
+            subtitle = "Objects and movement together",
             selected = mode == PlayMode.MIXED,
-            onClick = { mode = PlayMode.MIXED },
-            modifier = Modifier.fillMaxWidth().height(84.dp)
-        ) { ModeCardBody("Mixed", "Objects and movement together", enabled = true) }
+            onClick = { mode = PlayMode.MIXED }
+        )
 
         Spacer(Modifier.height(RpSpace.lg))
         SectionLabel("Age")
@@ -140,21 +146,4 @@ fun ModeSelectScreen(onContinue: () -> Unit, onBack: () -> Unit) {
 @Composable
 private fun SectionLabel(text: String) {
     Text(text, style = MaterialTheme.typography.titleMedium, color = RpOnDarkMuted, fontWeight = FontWeight.SemiBold)
-}
-
-@Composable
-private fun ModeCardBody(title: String, subtitle: String, enabled: Boolean) {
-    Column {
-        Text(
-            title,
-            style = MaterialTheme.typography.titleLarge,
-            color = if (enabled) RpOnDark else RpOnDarkMuted,
-            fontWeight = FontWeight.Bold
-        )
-        Text(
-            subtitle,
-            style = MaterialTheme.typography.bodyMedium,
-            color = if (enabled) RpOnDarkMuted else com.cognex.realplay.ui.theme.RpError
-        )
-    }
 }
