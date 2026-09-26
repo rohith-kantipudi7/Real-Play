@@ -3,7 +3,10 @@ package com.cognex.realplay.perception
 import android.content.Context
 import android.graphics.Bitmap
 import com.cognex.realplay.camera.CameraFrame
+import com.cognex.realplay.engine.AppSettings
 import com.cognex.realplay.util.RpLog
+import com.cognex.realplay.world.WorldState
+import com.cognex.realplay.world.WorldStateBuilder
 import com.google.mediapipe.framework.image.BitmapImageBuilder
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -26,11 +29,34 @@ class ObjectDetectionPipeline(
     private val _detections = MutableStateFlow<List<RawDetection>>(emptyList())
     val detections: StateFlow<List<RawDetection>> = _detections.asStateFlow()
 
+    /** The assembled world model (tracked objects + stability + frame quality), S3. */
+    private val world = WorldStateBuilder()
+    val worldState: StateFlow<WorldState> = world.state
+
     private val mediaPipe: MediaPipeObjectDetector?
     private val detector: ObjectDetectorSource
 
+    private var frameCount = 0
+
+    @Volatile
+    private var lastTimestampMs = 0L
+
+    @Volatile
+    private var lastLumaGrid: IntArray? = null
+
     init {
-        val onResults: (List<RawDetection>) -> Unit = { _detections.value = it }
+        val onResults: (List<RawDetection>) -> Unit = { results ->
+            _detections.value = results
+            // Advance the world model on the detector's result thread (single-threaded).
+            world.onFrame(
+                detections = results,
+                timestampMs = lastTimestampMs,
+                lumaGrid = lastLumaGrid,
+                gridWidth = FrameQualityAnalyzer.GRID_W,
+                gridHeight = FrameQualityAnalyzer.GRID_H,
+                trackOnlyMode = AppSettings.forceTrackOnly.value
+            )
+        }
         if (useFake) {
             mediaPipe = null
             detector = FakeObjectDetector(onResults)
@@ -51,6 +77,11 @@ class ObjectDetectionPipeline(
 
     /** Called per frame on the analyzer thread. Non-blocking. */
     fun onFrame(frame: CameraFrame) {
+        lastTimestampMs = frame.timestampMs
+        // Sample a luminance grid for frame-quality every 5th frame (§12 cadence).
+        if (frameCount++ % 5 == 0) {
+            lastLumaGrid = FrameQualityAnalyzer.sampleLuma(frame.bitmap)
+        }
         mediaPipe?.setFrameBitmap(frame.bitmap)
         val mpImage = BitmapImageBuilder(frame.bitmap).build()
         detector.detect(mpImage, frame.timestampMs)

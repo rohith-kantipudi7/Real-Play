@@ -1,0 +1,263 @@
+package com.cognex.realplay.perception
+
+import com.cognex.realplay.world.ColorTag
+import com.cognex.realplay.world.NormPoint
+import com.cognex.realplay.world.NormRect
+import com.cognex.realplay.world.SpatialRelations
+import com.cognex.realplay.world.TrackedObject
+
+/**
+ * Multi-object tracker (Architecture §12 "Tracker", S3). Pure JVM — no Android, fully testable on
+ * synthetic detection sequences.
+ *
+ * Algorithm per frame:
+ *  1. Greedy assignment of [RawDetection]s to existing tracks by a cost that blends IoU, centroid
+ *     distance and an appearance (dominant-colour histogram) term.
+ *     - A same-label pair is a candidate when IoU ≥ [IOU_MATCH] OR centroid distance ≤
+ *       [CENTROID_FALLBACK] (the fallback catches fast movement where boxes stop overlapping).
+ *     - A cross-label pair is a candidate only above IoU [CROSS_LABEL_IOU].
+ *  2. Ambiguity: if a detection's two best candidate tracks are within [AMBIGUOUS_RATIO] of each
+ *     other's cost (or a track's two best detections are), BOTH involved tracks are flagged
+ *     `ambiguous` for this frame and the incumbent assignment is kept (hysteresis). Verifiers read
+ *     `ambiguous` and return Unsure (§20 invariant 2).
+ *  3. Matched tracks update position by EMA ([EMA_ALPHA]), recompute velocity in normalized
+ *     units/second from timestamp deltas, and grow their colour histogram by a slow EMA.
+ *  4. A track is promoted (confirmed) after [PROMOTE_HITS] consecutive detections.
+ *  5. Unmatched tracks coast: their position is extrapolated from velocity, they are flagged
+ *     `stale`, and they are deleted after [COAST_FRAMES] missed frames.
+ *
+ * Only confirmed tracks are returned as [TrackedObject]s. `stable` is always false here — the
+ * [com.cognex.realplay.world.StabilityDetector] sets it downstream.
+ */
+class Tracker {
+
+    private val tracks = ArrayList<Track>()
+    private var nextId = 1
+
+    /** Advances the tracker by one frame and returns the confirmed tracks. */
+    fun update(detections: List<RawDetection>, timestampMs: Long): List<TrackedObject> {
+        // 1. Reset per-frame ambiguity.
+        tracks.forEach { it.ambiguous = false }
+
+        val nTracks = tracks.size
+        val nDets = detections.size
+
+        // 2. Cost + candidacy matrices.
+        val cost = Array(nTracks) { FloatArray(nDets) }
+        val candidate = Array(nTracks) { BooleanArray(nDets) }
+        for (t in 0 until nTracks) {
+            for (d in 0 until nDets) {
+                val pair = evaluate(tracks[t], detections[d])
+                cost[t][d] = pair.first
+                candidate[t][d] = pair.second
+            }
+        }
+
+        // 3. Ambiguity flags (detection-side and track-side).
+        flagAmbiguity(cost, candidate, nTracks, nDets)
+
+        // 4. Greedy assignment over candidate pairs, lowest cost first.
+        data class Pair3(val t: Int, val d: Int, val c: Float)
+        val pairs = ArrayList<Pair3>()
+        for (t in 0 until nTracks) for (d in 0 until nDets) {
+            if (candidate[t][d]) pairs.add(Pair3(t, d, cost[t][d]))
+        }
+        pairs.sortBy { it.c }
+
+        val trackTaken = BooleanArray(nTracks)
+        val detTaken = BooleanArray(nDets)
+        val matchedTrackOf = IntArray(nDets) { -1 }
+        for (p in pairs) {
+            if (!trackTaken[p.t] && !detTaken[p.d]) {
+                trackTaken[p.t] = true
+                detTaken[p.d] = true
+                matchedTrackOf[p.d] = p.t
+            }
+        }
+
+        // 5. Update matched, spawn new, coast unmatched.
+        for (d in 0 until nDets) {
+            val t = matchedTrackOf[d]
+            if (t >= 0) {
+                tracks[t].updateMatched(detections[d], timestampMs)
+            } else {
+                tracks.add(Track(nextId++).apply { initFrom(detections[d], timestampMs) })
+            }
+        }
+        for (t in 0 until nTracks) {
+            if (!trackTaken[t]) tracks[t].coast(timestampMs)
+        }
+
+        // 6. Delete tracks that have coasted too long.
+        tracks.removeAll { it.missed > COAST_FRAMES }
+
+        // 7. Emit confirmed tracks.
+        return tracks.filter { it.confirmed }.map { it.toTrackedObject() }
+    }
+
+    /** Returns (cost, isCandidate) for a track/detection pair. */
+    private fun evaluate(track: Track, det: RawDetection): kotlin.Pair<Float, Boolean> {
+        val iou = SpatialRelations.iou(track.box, det.box)
+        val cdist = SpatialRelations.distance(track.center, det.box.center)
+        val sameLabel = track.label == det.label
+        val candidate = if (sameLabel) {
+            iou >= IOU_MATCH || cdist <= CENTROID_FALLBACK
+        } else {
+            iou >= CROSS_LABEL_IOU
+        }
+        val appearance = track.appearanceDistance(det.color)
+        val labelPenalty = if (sameLabel) 0f else 0.3f
+        val cost = (1f - iou) + 0.5f * cdist + 0.2f * appearance + labelPenalty
+        return cost to candidate
+    }
+
+    private fun flagAmbiguity(
+        cost: Array<FloatArray>,
+        candidate: Array<BooleanArray>,
+        nTracks: Int,
+        nDets: Int
+    ) {
+        // Detection-side: a detection that fits two tracks nearly equally makes both ambiguous.
+        for (d in 0 until nDets) {
+            val hits = ArrayList<kotlin.Pair<Int, Float>>()
+            for (t in 0 until nTracks) if (candidate[t][d]) hits.add(t to cost[t][d])
+            if (hits.size >= 2) {
+                hits.sortBy { it.second }
+                val best = hits[0]
+                val second = hits[1]
+                if (second.second <= best.second * AMBIGUOUS_RATIO) {
+                    tracks[best.first].ambiguous = true
+                    tracks[second.first].ambiguous = true
+                }
+            }
+        }
+        // Track-side: a track that fits two detections nearly equally is ambiguous.
+        for (t in 0 until nTracks) {
+            val hits = ArrayList<Float>()
+            for (d in 0 until nDets) if (candidate[t][d]) hits.add(cost[t][d])
+            if (hits.size >= 2) {
+                hits.sort()
+                if (hits[1] <= hits[0] * AMBIGUOUS_RATIO) tracks[t].ambiguous = true
+            }
+        }
+    }
+
+    /** Mutable per-track state. */
+    private class Track(val id: Int) {
+        var label: String = ""
+        var confidence: Float = 0f
+        var box: NormRect = NormRect(0f, 0f, 0f, 0f)
+        var center: NormPoint = NormPoint(0f, 0f)
+        val colorHist = FloatArray(ColorTag.entries.size)
+        var velocity: NormPoint = NormPoint(0f, 0f)
+        var consecutiveHits = 0
+        var missed = 0
+        var ageFrames = 0
+        var lastSeenMs = 0L
+        var lastUpdateMs = 0L
+        var confirmed = false
+        var stale = false
+        var ambiguous = false
+
+        fun initFrom(det: RawDetection, now: Long) {
+            label = det.label
+            confidence = det.confidence
+            box = det.box
+            center = det.box.center
+            det.color?.let { colorHist[it.ordinal] += 1f }
+            velocity = NormPoint(0f, 0f)
+            consecutiveHits = 1
+            missed = 0
+            ageFrames = 1
+            lastSeenMs = now
+            lastUpdateMs = now
+            confirmed = consecutiveHits >= PROMOTE_HITS
+            stale = false
+        }
+
+        fun updateMatched(det: RawDetection, now: Long) {
+            val dt = ((now - lastUpdateMs).coerceAtLeast(1L)) / 1000f
+            val newBox = ema(box, det.box, EMA_ALPHA)
+            val newCenter = newBox.center
+            velocity = NormPoint((newCenter.x - center.x) / dt, (newCenter.y - center.y) / dt)
+            box = newBox
+            center = newCenter
+            label = det.label
+            confidence = det.confidence
+            // Slow appearance EMA.
+            for (i in colorHist.indices) colorHist[i] *= (1f - COLOR_EMA)
+            det.color?.let { colorHist[it.ordinal] += COLOR_EMA }
+            consecutiveHits++
+            missed = 0
+            ageFrames++
+            lastSeenMs = now
+            lastUpdateMs = now
+            if (consecutiveHits >= PROMOTE_HITS) confirmed = true
+            stale = false
+        }
+
+        fun coast(now: Long) {
+            val dt = ((now - lastUpdateMs).coerceAtLeast(1L)) / 1000f
+            val newCenter = NormPoint(center.x + velocity.x * dt, center.y + velocity.y * dt)
+            val dx = newCenter.x - center.x
+            val dy = newCenter.y - center.y
+            box = NormRect(box.left + dx, box.top + dy, box.right + dx, box.bottom + dy)
+            center = newCenter
+            consecutiveHits = 0
+            missed++
+            ageFrames++
+            lastUpdateMs = now
+            stale = true
+        }
+
+        /** Appearance cost in 0..1: 1 minus this track's normalized weight on the detection's colour. */
+        fun appearanceDistance(color: ColorTag?): Float {
+            if (color == null) return 0.1f
+            val sum = colorHist.sum()
+            if (sum <= 0f) return 0.1f
+            return 1f - (colorHist[color.ordinal] / sum)
+        }
+
+        private fun dominantColor(): ColorTag? {
+            var bestIdx = -1
+            var bestVal = 0f
+            for (i in colorHist.indices) if (colorHist[i] > bestVal) { bestVal = colorHist[i]; bestIdx = i }
+            if (bestIdx < 0) return null
+            val tag = ColorTag.entries[bestIdx]
+            return if (tag == ColorTag.UNKNOWN) null else tag
+        }
+
+        fun toTrackedObject(): TrackedObject = TrackedObject(
+            trackId = id,
+            label = label,
+            confidence = confidence,
+            box = box,
+            center = center,
+            color = dominantColor(),
+            ageFrames = ageFrames,
+            lastSeenMs = lastSeenMs,
+            velocity = velocity,
+            stable = false,
+            stale = stale,
+            ambiguous = ambiguous
+        )
+
+        private fun ema(old: NormRect, new: NormRect, alpha: Float): NormRect = NormRect(
+            left = alpha * new.left + (1f - alpha) * old.left,
+            top = alpha * new.top + (1f - alpha) * old.top,
+            right = alpha * new.right + (1f - alpha) * old.right,
+            bottom = alpha * new.bottom + (1f - alpha) * old.bottom
+        )
+    }
+
+    companion object {
+        const val IOU_MATCH = 0.3f
+        const val CENTROID_FALLBACK = 0.12f
+        const val CROSS_LABEL_IOU = 0.6f
+        const val PROMOTE_HITS = 3
+        const val COAST_FRAMES = 8
+        const val EMA_ALPHA = 0.6f
+        const val COLOR_EMA = 0.1f
+        const val AMBIGUOUS_RATIO = 1.15f
+    }
+}

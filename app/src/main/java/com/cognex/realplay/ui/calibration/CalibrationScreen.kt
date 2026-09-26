@@ -30,12 +30,12 @@ import androidx.compose.ui.unit.dp
 import com.cognex.realplay.camera.CameraController
 import com.cognex.realplay.engine.AppSettings
 import com.cognex.realplay.perception.ObjectDetectionPipeline
-import com.cognex.realplay.perception.RawDetection
 import com.cognex.realplay.ui.camera.CameraPermissionGate
 import com.cognex.realplay.ui.camera.CameraPreview
 import com.cognex.realplay.ui.overlay.OverlayCanvas
 import com.cognex.realplay.ui.overlay.OverlayDetection
 import com.cognex.realplay.world.ColorTag
+import com.cognex.realplay.world.WorldState
 import kotlinx.coroutines.launch
 
 /**
@@ -54,34 +54,36 @@ fun CalibrationScreen(onReady: () -> Unit, onBack: () -> Unit) {
         val useFake by AppSettings.useFakeDetector.collectAsState()
 
         var showCalibration by remember { mutableStateOf(true) }
-        var detections by remember { mutableStateOf<List<RawDetection>>(emptyList()) }
+        var world by remember { mutableStateOf(WorldState.EMPTY) }
 
         // (Re)build the detection pipeline whenever the fake/real toggle changes.
         DisposableEffect(controller, useFake) {
             val pipeline = ObjectDetectionPipeline(context.applicationContext, useFake)
             controller.analyzer.frameSink = { pipeline.onFrame(it) }
-            val job = scope.launch { pipeline.detections.collect { detections = it } }
+            val job = scope.launch { pipeline.worldState.collect { world = it } }
             onDispose {
                 controller.analyzer.frameSink = null
                 job.cancel()
                 pipeline.close()
-                detections = emptyList()
+                world = WorldState.EMPTY
             }
         }
         DisposableEffect(controller) {
             onDispose { controller.shutdown() }
         }
 
-        val overlayDetections = detections.map { d ->
+        val overlayDetections = world.objects.map { obj ->
             OverlayDetection(
-                left = d.box.left, top = d.box.top, right = d.box.right, bottom = d.box.bottom,
+                left = obj.box.left, top = obj.box.top, right = obj.box.right, bottom = obj.box.bottom,
                 label = buildString {
-                    append(d.label)
-                    append(' ')
-                    append(String.format("%.2f", d.confidence))
-                    d.color?.let { append("  ${it.name.lowercase()}") }
+                    append("#${obj.trackId} ")
+                    append(obj.label)
+                    obj.color?.let { append("  ${it.name.lowercase()}") }
+                    if (obj.stable) append("  \u25CF")     // ● settled
+                    if (obj.stale) append("  ~")           // coasting
+                    if (obj.ambiguous) append("  ?")       // ambiguous
                 },
-                color = colorForTag(d.color)
+                color = colorForTag(obj.color)
             )
         }
 
@@ -96,16 +98,18 @@ fun CalibrationScreen(onReady: () -> Unit, onBack: () -> Unit) {
                 detections = overlayDetections
             )
 
-            // Top readout — FPS + analysis geometry + detection count.
+            // Top readout — FPS + analysis geometry + object count + frame quality.
             val info = analysisInfo
             val readout = buildString {
                 append("FPS ")
                 append(String.format("%.1f", fps))
                 if (info != null) {
                     append("   \u2022   ${info.imageW}\u00d7${info.imageH}")
-                    append("   \u2022   rot ${info.rotationDegrees}\u00b0")
                 }
-                append("   \u2022   ${detections.size} obj")
+                append("   \u2022   ${world.objects.size} obj")
+                if (!world.quality.good) {
+                    append("   \u2022   ${world.quality.reason ?: "POOR"}")
+                }
             }
             Text(
                 text = readout,
