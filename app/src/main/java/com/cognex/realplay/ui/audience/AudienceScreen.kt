@@ -98,7 +98,7 @@ fun AudienceScreen(onContinue: () -> Unit, onBack: () -> Unit) {
         RpOptionCard(
             icon = "\u2728", // sparkles
             title = "Freeform (no camera check)",
-            subtitle = "The app invents a fun game, reads it aloud, and gives you 30 seconds.",
+            subtitle = "The app invents a fun game and reads it aloud — tap Next level when you're ready.",
             selected = !verified,
             accent = RpAmber
         ) { verified = false; AppSettings.setVerifierEnabled(false) }

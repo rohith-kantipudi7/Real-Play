@@ -106,7 +106,6 @@ class GameViewModel(
     // ── without-verifier (freeform) mode state (§ user request) ──
     private var freeformLevel = 0
     private var freeformStartMs = 0L
-    private var freeformHoldUntil = 0L
     private var currentFreeform: FreeformGames.Game? = null
     @Volatile private var freeformComposing = false
     @Volatile private var pendingFreeform: FreeformGames.Game? = null
@@ -207,8 +206,7 @@ class GameViewModel(
         if (sessionOver) return
         // Freeform mode: no verification — just jump straight to the next timed game.
         if (!AppSettings.verifierEnabled.value) {
-            freeformHoldUntil = 0L
-            freeformStartMs = 0L
+            nextFreeform()
             return
         }
         val spec = selection?.spec ?: return
@@ -245,6 +243,12 @@ class GameViewModel(
         )
         // A brief calm hold, then the frame loop clears the mission and composes the next game.
         advanceAtMs = System.currentTimeMillis() + SKIP_HOLD_MS
+    }
+
+    /** Freeform "Next level" — advance to a fresh game manually (no timer, no scoring). */
+    fun nextFreeform() {
+        if (sessionOver) return
+        freeformStartMs = 0L
     }
 
     /** Dismisses the break suggestion for the rest of this session (§10 rule 8). */
@@ -371,88 +375,54 @@ class GameViewModel(
      * advances to the next, harder game. No pass/fail — the camera doesn't judge these (§ user req).
      */
     private fun processFreeform(world: WorldState) {
-        val now = world.timestampMs
-        // Calm celebration hold between games.
-        if (freeformHoldUntil != 0L) {
-            if (now < freeformHoldUntil) return
-            freeformHoldUntil = 0L
-            freeformStartMs = 0L
-        }
-        // Start the next game — compose-first: the cloud/on-device model authors it from the live
-        // object list; while it's in flight we show "Creating your game…" and fall back to a
-        // deterministic template on any failure so the loop never stalls.
-        if (freeformStartMs == 0L) {
-            if (freeformComposing) return
-            val ready = pendingFreeform
-            if (ready != null) {
-                pendingFreeform = null
-                freeformLevel++
-                challengeIndex++
-                freeformStartMs = now
-                currentFreeform = ready
-                publishFreeform(ready, remaining = FREEFORM_MS, elapsed = 0L, done = false)
-                return
-            }
-            val labels = world.objects.mapNotNull { o -> o.label.takeIf { it.isNotBlank() } }.distinct()
-            val fallback = FreeformGames.forLevel(freeformLevel + 1, labels)
-            if (!freeformComposer.active()) {
-                pendingFreeform = fallback
-                return
-            }
-            freeformComposing = true
-            publishComposing("Creating your game…")
-            composeJob = viewModelScope.launch(Dispatchers.Default) {
-                pendingFreeform = runCatching { freeformComposer.compose(labels, freeformLevel + 1) }
-                    .getOrNull() ?: fallback
-                freeformComposing = false
-            }
+        // A game stays on screen until the player taps "Next level" — no timer, no auto-advance,
+        // no scoring (§ user request). freeformStartMs != 0 marks a game as currently active.
+        if (freeformStartMs != 0L) return
+        if (freeformComposing) return
+        val ready = pendingFreeform
+        if (ready != null) {
+            pendingFreeform = null
+            freeformLevel++
+            challengeIndex++
+            freeformStartMs = world.timestampMs
+            currentFreeform = ready
+            publishFreeform(ready)
             return
         }
-        val game = currentFreeform ?: return
-        val elapsed = (now - freeformStartMs).coerceAtLeast(0L)
-        val remaining = (FREEFORM_MS - elapsed).coerceAtLeast(0L)
-        if (remaining <= 0L) {
-            session.addScore(FREEFORM_SCORE)
-            SessionResults.record(
-                ChallengeResult(
-                    index = challengeIndex,
-                    type = game.title,
-                    winnerId = "freeform",
-                    passed = true,
-                    timedOut = false,
-                    score = FREEFORM_SCORE,
-                    stepCount = 1,
-                    completedSteps = 1,
-                    evidence = emptyList()
-                ),
-                totalScore = session.totalScore,
-                bestStreak = bestStreak
-            )
-            publishFreeform(game, remaining = 0L, elapsed = FREEFORM_MS, done = true)
-            freeformHoldUntil = now + LEVEL_DONE_MS
+        // Compose-first: the cloud/on-device model authors the next game from the live object list;
+        // while it's in flight we show "Creating your game…", falling back to a template on failure.
+        val labels = world.objects.mapNotNull { o -> o.label.takeIf { it.isNotBlank() } }.distinct()
+        val fallback = FreeformGames.forLevel(freeformLevel + 1, labels)
+        if (!freeformComposer.active()) {
+            pendingFreeform = fallback
             return
         }
-        publishFreeform(game, remaining, elapsed, done = false)
+        freeformComposing = true
+        publishComposing("Creating your game…")
+        composeJob = viewModelScope.launch(Dispatchers.Default) {
+            pendingFreeform = runCatching { freeformComposer.compose(labels, freeformLevel + 1) }
+                .getOrNull() ?: fallback
+            freeformComposing = false
+        }
     }
 
-    private fun publishFreeform(game: FreeformGames.Game, remaining: Long, elapsed: Long, done: Boolean) {
+    private fun publishFreeform(game: FreeformGames.Game) {
         _cues.value = emptyList()
         _ui.value = _ui.value.copy(
-            status = if (done) PlayStatus.PASSED else PlayStatus.PLAYING,
+            status = PlayStatus.PLAYING,
             instruction = game.instruction,
             stepIndex = 0,
             stepCount = 1,
-            completedSteps = if (done) 1 else 0,
-            stepProgress = if (done) 1f else (elapsed.toFloat() / FREEFORM_MS).coerceIn(0f, 1f),
+            completedSteps = 0,
+            stepProgress = 0f,
             score = session.totalScore,
-            streak = session.streak,
+            streak = 0,
             challengeIndex = challengeIndex,
             perfect = false,
-            lastGain = if (done) FREEFORM_SCORE else _ui.value.lastGain,
-            coachingHint = if (done) null else game.hints.firstOrNull(),
+            coachingHint = game.hints.firstOrNull(),
             evidence = emptyList(),
-            timeRemainingMs = if (done) null else remaining,
-            timeFraction = if (done) null else (remaining.toFloat() / FREEFORM_MS).coerceIn(0f, 1f),
+            timeRemainingMs = null,
+            timeFraction = null,
             retriesLeft = 0,
             winnerId = "",
             winnerType = ""
@@ -761,10 +731,8 @@ class GameViewModel(
         const val LEVEL_DONE_MS = 2_000L
         /** Short calm beat after a skip before the next game composes. */
         const val SKIP_HOLD_MS = 650L
-        /** Verified games auto-complete after this long so the demo always flows to the next level. */
-        const val AUTO_COMPLETE_MS = 10_000L
-        /** Without-verifier game duration and its flat honour-system reward. */
-        const val FREEFORM_MS = 15_000L
-        const val FREEFORM_SCORE = 20
+        /** Verified games auto-complete only after this long — kept high so the demo relies on real
+         *  verification (and manual Skip for a game the camera can't detect), not an early auto-pass. */
+        const val AUTO_COMPLETE_MS = 120_000L
     }
 }

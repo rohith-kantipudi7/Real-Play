@@ -77,7 +77,7 @@ fun SettingsScreen(
                 Text(
                     text = "On: the camera checks each game (grab, arrange, colour…) and passes it " +
                         "when you really do it. Off: freeform mode — the app reads a fun, harder game " +
-                        "aloud, shows it, and gives you 30 seconds; nothing is camera-checked.",
+                        "aloud and shows it; tap Next level to move on. Nothing is camera-checked.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 4.dp, bottom = 4.dp)

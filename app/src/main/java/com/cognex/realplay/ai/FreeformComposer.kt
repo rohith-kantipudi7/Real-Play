@@ -26,7 +26,7 @@ class FreeformComposer(
         return FreeformGames.Game(
             title = "Challenge $level",
             instruction = instruction,
-            hints = listOf("You've got 30 seconds — go!")
+            hints = listOf("Tap Next level for a new game!")
         )
     }
 
@@ -40,9 +40,9 @@ class FreeformComposer(
         return buildString {
             appendLine("You are the game master for RealPlay, a live camera game for children.")
             appendLine("The camera sees these objects on the table right now: $objs.")
-            appendLine("Invent ONE fun, $difficulty 30-second physical challenge the child can do")
-            appendLine("RIGHT NOW using these objects and their body. It is NOT camera-judged, so be")
-            appendLine("imaginative — building, arranging, balancing, racing, sorting, posing.")
+            appendLine("Invent ONE fun, $difficulty physical challenge the child can do RIGHT NOW")
+            appendLine("using these objects and their body, at their own pace. It is NOT camera-judged,")
+            appendLine("so be imaginative — building, arranging, balancing, racing, sorting, posing.")
             appendLine("Name the real objects. Keep it safe: never ask them to climb, jump, throw,")
             appendLine("run around, hit, or eat anything.")
             appendLine("Reply with ONLY the instruction: one short, playful sentence, max 100")

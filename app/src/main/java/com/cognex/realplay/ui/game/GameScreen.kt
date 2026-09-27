@@ -264,6 +264,7 @@ fun GameScreen(onFinish: () -> Unit, onBack: () -> Unit) {
             )
 
             // Bottom controls.
+            val freeform by com.cognex.realplay.engine.AppSettings.verifierEnabled.collectAsState()
             Row(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
@@ -272,13 +273,19 @@ fun GameScreen(onFinish: () -> Unit, onBack: () -> Unit) {
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 RpOutlinedButton(text = "Back", onClick = onBack, modifier = Modifier.weight(1f))
-                RpOutlinedButton(
-                    text = "Retry (${ui.retriesLeft})",
-                    onClick = { vm.retry() },
-                    enabled = ui.retriesLeft > 0,
-                    modifier = Modifier.weight(1f)
-                )
-                RpButton(text = "Finish", onClick = { vm.finish() }, modifier = Modifier.weight(1f))
+                if (freeform) {
+                    // Freeform (no verifier): advance manually — no timer, no scoring.
+                    RpButton(text = "Next level", onClick = { vm.nextFreeform() }, modifier = Modifier.weight(1.4f))
+                    RpOutlinedButton(text = "Finish", onClick = { vm.finish() }, modifier = Modifier.weight(1f))
+                } else {
+                    RpOutlinedButton(
+                        text = "Retry (${ui.retriesLeft})",
+                        onClick = { vm.retry() },
+                        enabled = ui.retriesLeft > 0,
+                        modifier = Modifier.weight(1f)
+                    )
+                    RpButton(text = "Finish", onClick = { vm.finish() }, modifier = Modifier.weight(1f))
+                }
             }
 
             // Skip escape hatch (top-right, below the HUD) — some scenes can't complete a given
