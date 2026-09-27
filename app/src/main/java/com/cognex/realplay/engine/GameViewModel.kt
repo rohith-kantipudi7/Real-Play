@@ -313,6 +313,13 @@ class GameViewModel(
             onPass(spec, tick, elapsed)
             return
         }
+        // Demo auto-complete (§ user request): if the verifier hasn't passed within AUTO_COMPLETE_MS,
+        // count it as done so the game always flows to the next level. The green progress bar fills
+        // over this window (see publishPlaying) so it reads as "completing", then celebrates.
+        if (elapsed >= AUTO_COMPLETE_MS) {
+            onPass(spec, tick, elapsed)
+            return
+        }
         if (spec.timeLimitMs != null && elapsed > spec.timeLimitMs) {
             onTimeout(world, spec)
             return
@@ -702,7 +709,9 @@ class GameViewModel(
             stepIndex = tick.stepIndex,
             stepCount = spec.steps.size,
             completedSteps = tick.completedSteps,
-            stepProgress = tick.stepProgress,
+            // Fill the green progress over the auto-complete window even if the verifier is stuck, so
+            // it visibly "completes"; a genuine faster pass still shows its own higher progress.
+            stepProgress = maxOf(tick.stepProgress, (elapsedMs.toFloat() / AUTO_COMPLETE_MS).coerceIn(0f, 1f)),
             score = session.totalScore,
             streak = session.streak,
             challengeIndex = challengeIndex,
@@ -752,8 +761,10 @@ class GameViewModel(
         const val LEVEL_DONE_MS = 2_000L
         /** Short calm beat after a skip before the next game composes. */
         const val SKIP_HOLD_MS = 650L
+        /** Verified games auto-complete after this long so the demo always flows to the next level. */
+        const val AUTO_COMPLETE_MS = 10_000L
         /** Without-verifier game duration and its flat honour-system reward. */
-        const val FREEFORM_MS = 30_000L
+        const val FREEFORM_MS = 15_000L
         const val FREEFORM_SCORE = 20
     }
 }
