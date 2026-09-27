@@ -317,13 +317,6 @@ class GameViewModel(
             onPass(spec, tick, elapsed)
             return
         }
-        // Demo auto-complete (§ user request): if the verifier hasn't passed within AUTO_COMPLETE_MS,
-        // count it as done so the game always flows to the next level. The green progress bar fills
-        // over this window (see publishPlaying) so it reads as "completing", then celebrates.
-        if (elapsed >= AUTO_COMPLETE_MS) {
-            onPass(spec, tick, elapsed)
-            return
-        }
         if (spec.timeLimitMs != null && elapsed > spec.timeLimitMs) {
             onTimeout(world, spec)
             return
@@ -666,6 +659,8 @@ class GameViewModel(
         val status = if (tick.outcome is VerificationOutcome.Unsure || escalated != null) {
             PlayStatus.COACHING
         } else PlayStatus.PLAYING
+        val timeRemaining = spec.timeLimitMs?.let { (it - elapsedMs).coerceAtLeast(0L) }
+        val timeFraction = spec.timeLimitMs?.let { (timeRemaining!!.toFloat() / it).coerceIn(0f, 1f) }
         val evNow = when (val o = tick.outcome) {
             is VerificationOutcome.Pass -> o.evidence
             is VerificationOutcome.Fail -> o.evidence
@@ -677,19 +672,15 @@ class GameViewModel(
             stepIndex = tick.stepIndex,
             stepCount = spec.steps.size,
             completedSteps = tick.completedSteps,
-            // Fill the green progress to FULL just before the auto-complete fires, so it visibly
-            // "loads completely" at ~10 s; a genuine faster pass still shows its own higher progress.
-            stepProgress = maxOf(tick.stepProgress, (elapsedMs.toFloat() / (AUTO_COMPLETE_MS * 0.92f)).coerceIn(0f, 1f)),
+            stepProgress = tick.stepProgress,
             score = session.totalScore,
             streak = session.streak,
             challengeIndex = challengeIndex,
             perfect = false,
             coachingHint = effectiveHint,
             evidence = evNow,
-            // No numeric countdown for verified games (§ user request) — the filling green bar is the
-            // only progress cue; the game auto-completes at AUTO_COMPLETE_MS.
-            timeRemainingMs = null,
-            timeFraction = null,
+            timeRemainingMs = timeRemaining,
+            timeFraction = timeFraction,
             retriesLeft = retriesLeft,
             winnerId = selection?.winnerId ?: "",
             winnerType = spec.type.name,
@@ -731,8 +722,5 @@ class GameViewModel(
         const val LEVEL_DONE_MS = 2_000L
         /** Short calm beat after a skip before the next game composes. */
         const val SKIP_HOLD_MS = 650L
-        /** Verified games auto-complete after this long so the demo always flows to the next level.
-         *  The green progress bar fills to full over this window; no numeric timer is shown. */
-        const val AUTO_COMPLETE_MS = 10_000L
     }
 }

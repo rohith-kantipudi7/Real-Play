@@ -603,28 +603,15 @@ private fun missionProgress(hud: Hud): Float {
     return ((hud.completedSteps + hud.stepProgress) / steps).coerceIn(0f, 1f)
 }
 
-/** Uneven fill checkpoints — the bar snaps to the highest one at/below the raw progress, so it
- *  advances in unequal jumps rather than a smooth linear sweep. 1f is always reachable at 100%. */
-private val PROGRESS_STOPS = floatArrayOf(0f, 0.13f, 0.19f, 0.42f, 0.5f, 0.71f, 0.8f, 0.94f, 1f)
-
-private fun steppedProgress(raw: Float): Float {
-    val p = raw.coerceIn(0f, 1f)
-    var stop = 0f
-    for (s in PROGRESS_STOPS) { if (s <= p) stop = s else break }
-    return stop
-}
-
 /**
  * The live mission progress bar (§3a) — a smooth bottom bar that fills as the verifier reports
  * progress and reads "Done!" at 100%, right before the level auto-completes into the celebration.
  */
 @Composable
 private fun GameProgressBar(progress: Float, visible: Boolean, modifier: Modifier = Modifier) {
-    // Snap the fill to UNEVEN checkpoints so it advances in irregular jumps (reads like live
-    // detection), never a clean linear sweep (§ user request).
     val anim by animateFloatAsState(
-        targetValue = steppedProgress(progress),
-        animationSpec = tween(220, easing = FastOutSlowInEasing),
+        targetValue = progress.coerceIn(0f, 1f),
+        animationSpec = tween(300, easing = FastOutSlowInEasing),
         label = "missionProgress"
     )
     androidx.compose.animation.AnimatedVisibility(
