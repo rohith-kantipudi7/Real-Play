@@ -96,7 +96,7 @@ private fun ResultRow(r: ChallengeResult) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "${r.index}. ${prettyType(r.type)}  (${r.winnerId})",
+                text = "${r.index}. ${prettyType(r.type)}",
                 style = MaterialTheme.typography.titleMedium,
                 color = RpOnDark,
                 fontWeight = FontWeight.SemiBold

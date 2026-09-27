@@ -76,8 +76,8 @@ fun SettingsScreen(
                     divider = false
                 )
                 Text(
-                    text = "Plays the fixed demo sequence — Grab \u2192 Triangle \u2192 Line-up \u2192 " +
-                        "Sort \u2192 Hold & Pose \u2014 in order, skipping only a game your table can't " +
+                    text = "Plays a fixed game order for each difficulty — Toddler stays on basic " +
+                        "games, up to the full Pro demo arc — skipping only a game your table can't " +
                         "support. Turn off for adaptive games chosen from what the camera sees.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,

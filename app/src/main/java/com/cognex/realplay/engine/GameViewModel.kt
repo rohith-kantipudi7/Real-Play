@@ -341,7 +341,7 @@ class GameViewModel(
      * scored pick and never stalls.
      */
     private fun selectArc(world: WorldState, cap: SceneCapability, ctx: GenerationContext): SelectionResult? {
-        val order = DemoArc.order
+        val order = DemoArc.orderFor(ctx.ageBand)
         for (i in order.indices) {
             val idx = (arcCursor + i) % order.size
             val id = order[idx]

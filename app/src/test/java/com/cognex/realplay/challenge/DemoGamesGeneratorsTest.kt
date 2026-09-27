@@ -143,7 +143,14 @@ class DemoGamesGeneratorsTest {
 
     @Test fun demoArc_idsAllExistInRegistry() {
         val ids = ChallengeRegistry.default().generators.map { it.id }.toSet()
-        assertTrue(com.cognex.realplay.engine.DemoArc.order.all { it in ids })
+        for (band in AgeBand.entries) {
+            assertTrue(com.cognex.realplay.engine.DemoArc.orderFor(band).all { it in ids })
+        }
+    }
+
+    @Test fun demoArc_toddlerIsBasicGamesOnly() {
+        // Toddler must never list geometry/pose/sort/combo — only Grab + Find-colour.
+        assertEquals(listOf("G8", "G3"), com.cognex.realplay.engine.DemoArc.orderFor(AgeBand.TODDLER))
     }
 
     @Test fun canPlay_ignoresAgeGate_butHonoursRequirement() {
