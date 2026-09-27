@@ -28,9 +28,9 @@ data class DifficultyKnobs(
             val timeLimit: Long?
             val poseTol: Float
             when (tier) {
-                Tier.EASY -> { baseDistance = 0.32f; baseHold = 400L; timeLimit = null; poseTol = 34f }
-                Tier.MEDIUM -> { baseDistance = 0.24f; baseHold = 600L; timeLimit = 30_000L; poseTol = 26f }
-                Tier.HARD -> { baseDistance = 0.18f; baseHold = 800L; timeLimit = 30_000L; poseTol = 20f }
+                Tier.EASY -> { baseDistance = 0.28f; baseHold = 500L; timeLimit = null; poseTol = 30f }
+                Tier.MEDIUM -> { baseDistance = 0.20f; baseHold = 800L; timeLimit = 30_000L; poseTol = 20f }
+                Tier.HARD -> { baseDistance = 0.15f; baseHold = 1_000L; timeLimit = 30_000L; poseTol = 15f }
             }
             val distance = baseDistance * (1f + 0.3f * (1f - s))
             val hold = (baseHold * (1f + 0.4f * (1f - st))).toLong()

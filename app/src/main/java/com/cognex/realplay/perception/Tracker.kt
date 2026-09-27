@@ -209,6 +209,9 @@ class Tracker {
             val dy = newCenter.y - center.y
             box = NormRect(box.left + dx, box.top + dy, box.right + dx, box.bottom + dy)
             center = newCenter
+            // Bleed off velocity while coasting so a lost track settles near where it vanished,
+            // which lets the same object re-match its OWN track (same id) when it reappears.
+            velocity = NormPoint(velocity.x * COAST_VELOCITY_DECAY, velocity.y * COAST_VELOCITY_DECAY)
             consecutiveHits = 0
             missed++
             ageFrames++
@@ -280,7 +283,12 @@ class Tracker {
         const val CENTROID_FALLBACK = 0.12f
         const val CROSS_LABEL_IOU = 0.6f
         const val PROMOTE_HITS = 3
-        const val COAST_FRAMES = 8
+        // Long coast so a track survives a multi-second detection dropout (occlusion, a missed
+        // model frame) — it stays resolvable by its id and re-matches the same object on reappear,
+        // instead of being deleted and re-detected as a NEW id mid-game.
+        const val COAST_FRAMES = 20
+        /** Velocity retained per coasted frame — settles a lost track near where it vanished. */
+        const val COAST_VELOCITY_DECAY = 0.5f
         const val EMA_ALPHA = 0.6f
         const val COLOR_EMA = 0.1f
         const val AMBIGUOUS_RATIO = 1.15f

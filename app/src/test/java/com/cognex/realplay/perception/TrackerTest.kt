@@ -104,15 +104,31 @@ class TrackerTest {
     }
 
     @Test
+    fun reappearsWithinCoastWindow_keepsSameId() {
+        val t = Tracker()
+        // Confirm a stationary cup.
+        t.update(listOf(det("cup", 0.5f, 0.5f)), 1000)
+        t.update(listOf(det("cup", 0.5f, 0.5f)), 1100)
+        val id = t.update(listOf(det("cup", 0.5f, 0.5f)), 1200)[0].trackId
+        // Detection drops out for several frames (a mid-game occlusion) within the coast window.
+        var ts = 1300L
+        repeat(6) { t.update(emptyList(), ts); ts += 100 }
+        // The same object reappears in the same spot — it must re-match its OWN track, not a new id.
+        val back = t.update(listOf(det("cup", 0.5f, 0.5f)), ts)
+        assertEquals(1, back.size)
+        assertEquals(id, back[0].trackId)
+    }
+
+    @Test
     fun leaving_afterCoastWindow_isDeleted() {
         val t = Tracker()
         t.update(listOf(det("cup", 0.5f, 0.5f)), 1000)
         t.update(listOf(det("cup", 0.5f, 0.5f)), 1100)
         assertEquals(1, t.update(listOf(det("cup", 0.5f, 0.5f)), 1200).size)
-        // 9 empty frames — coasts for 8, deleted on the 9th (missed > COAST_FRAMES).
+        // Empty frames — coasts for COAST_FRAMES (20), deleted once missed exceeds it.
         var ts = 1300L
         var out = emptyList<com.cognex.realplay.world.TrackedObject>()
-        repeat(9) {
+        repeat(21) {
             out = t.update(emptyList(), ts)
             ts += 100
         }

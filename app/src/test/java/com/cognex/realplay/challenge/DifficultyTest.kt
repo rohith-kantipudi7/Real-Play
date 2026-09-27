@@ -64,13 +64,13 @@ class DifficultyTest {
     fun knobs_perTierBaseValues() {
         // spread=1, stability=1 → no scaling.
         val easy = DifficultyKnobs.forTier(Tier.EASY, spread = 1f, stability = 1f)
-        assertEquals(0.32f, easy.distanceThreshold, 1e-4f)
-        assertEquals(400L, easy.holdMs)
+        assertEquals(0.28f, easy.distanceThreshold, 1e-4f)
+        assertEquals(500L, easy.holdMs)
         assertEquals(null, easy.timeLimitMs)
 
         val hard = DifficultyKnobs.forTier(Tier.HARD, spread = 1f, stability = 1f)
-        assertEquals(0.18f, hard.distanceThreshold, 1e-4f)
-        assertEquals(800L, hard.holdMs)
+        assertEquals(0.15f, hard.distanceThreshold, 1e-4f)
+        assertEquals(1_000L, hard.holdMs)
         assertEquals(30_000L, hard.timeLimitMs)
     }
 
@@ -78,9 +78,9 @@ class DifficultyTest {
     fun knobs_clusteredSceneIsMoreForgiving_jitteryDemandsLongerHold() {
         // spread=0 → distance × 1.3; stability=0 → hold × 1.4.
         val knobs = DifficultyKnobs.forTier(Tier.MEDIUM, spread = 0f, stability = 0f)
-        assertEquals(0.24f * 1.3f, knobs.distanceThreshold, 1e-4f)
-        assertEquals((600L * 1.4f).toLong(), knobs.holdMs)
-        assertTrue(knobs.distanceThreshold > 0.24f)
-        assertTrue(knobs.holdMs > 600L)
+        assertEquals(0.20f * 1.3f, knobs.distanceThreshold, 1e-4f)
+        assertEquals((800L * 1.4f).toLong(), knobs.holdMs)
+        assertTrue(knobs.distanceThreshold > 0.20f)
+        assertTrue(knobs.holdMs > 800L)
     }
 }

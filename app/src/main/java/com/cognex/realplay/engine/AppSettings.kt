@@ -21,8 +21,8 @@ import kotlinx.coroutines.flow.asStateFlow
  *                         difficulty "why" line) on top of the camera preview. Off by default —
  *                         these are debugging aids, not something a player should see.
  *  - [demoArcEnabled]   : play each tier's scripted demo order in sequence (Toddler basics up to the
- *                         full Pro arc) instead of the adaptive scored pick (§5, [DemoArc]). On by
- *                         default so a demo is predictable; turn off for adaptive, scene-driven play.
+ *                         full Pro arc) instead of the adaptive scored pick (§5, [DemoArc]). Off by
+ *                         default — the LLM/registry chooses each game; turn on for a fixed order.
  */
 object AppSettings {
     private val _forceTrackOnly = MutableStateFlow(false)
@@ -37,7 +37,7 @@ object AppSettings {
     private val _devOverlayEnabled = MutableStateFlow(false)
     val devOverlayEnabled: StateFlow<Boolean> = _devOverlayEnabled.asStateFlow()
 
-    private val _demoArcEnabled = MutableStateFlow(true)
+    private val _demoArcEnabled = MutableStateFlow(false)
     val demoArcEnabled: StateFlow<Boolean> = _demoArcEnabled.asStateFlow()
 
     fun setForceTrackOnly(value: Boolean) { _forceTrackOnly.value = value }
