@@ -71,7 +71,7 @@ class DifficultyTest {
         val hard = DifficultyKnobs.forTier(Tier.HARD, spread = 1f, stability = 1f)
         assertEquals(0.18f, hard.distanceThreshold, 1e-4f)
         assertEquals(800L, hard.holdMs)
-        assertEquals(45_000L, hard.timeLimitMs)
+        assertEquals(30_000L, hard.timeLimitMs)
     }
 
     @Test
