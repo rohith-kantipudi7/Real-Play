@@ -81,6 +81,9 @@ class GameViewModel(
      */
     private val composer = ChallengeComposer(registry, languageModel ?: AiRuntime.model())
 
+    /** Cloud/on-device model that authors the "without verifier" games from the object list. */
+    private val freeformComposer = com.cognex.realplay.ai.FreeformComposer(languageModel ?: AiRuntime.model())
+
     private val session = GameSession()
     private val sm = GameStateMachine()
 
@@ -105,6 +108,8 @@ class GameViewModel(
     private var freeformStartMs = 0L
     private var freeformHoldUntil = 0L
     private var currentFreeform: FreeformGames.Game? = null
+    @Volatile private var freeformComposing = false
+    @Volatile private var pendingFreeform: FreeformGames.Game? = null
 
     /** Session-elapsed break suggestion (§10 rule 8 — TODDLER only, once per session). */
     private val sessionStartMs = System.currentTimeMillis()
@@ -366,14 +371,34 @@ class GameViewModel(
             freeformHoldUntil = 0L
             freeformStartMs = 0L
         }
-        // Start the next game.
+        // Start the next game — compose-first: the cloud/on-device model authors it from the live
+        // object list; while it's in flight we show "Creating your game…" and fall back to a
+        // deterministic template on any failure so the loop never stalls.
         if (freeformStartMs == 0L) {
-            freeformLevel++
-            challengeIndex++
-            freeformStartMs = now
+            if (freeformComposing) return
+            val ready = pendingFreeform
+            if (ready != null) {
+                pendingFreeform = null
+                freeformLevel++
+                challengeIndex++
+                freeformStartMs = now
+                currentFreeform = ready
+                publishFreeform(ready, remaining = FREEFORM_MS, elapsed = 0L, done = false)
+                return
+            }
             val labels = world.objects.mapNotNull { o -> o.label.takeIf { it.isNotBlank() } }.distinct()
-            currentFreeform = FreeformGames.forLevel(freeformLevel, labels)
-            publishFreeform(currentFreeform!!, remaining = FREEFORM_MS, elapsed = 0L, done = false)
+            val fallback = FreeformGames.forLevel(freeformLevel + 1, labels)
+            if (!freeformComposer.active()) {
+                pendingFreeform = fallback
+                return
+            }
+            freeformComposing = true
+            publishComposing("Creating your game…")
+            composeJob = viewModelScope.launch(Dispatchers.Default) {
+                pendingFreeform = runCatching { freeformComposer.compose(labels, freeformLevel + 1) }
+                    .getOrNull() ?: fallback
+                freeformComposing = false
+            }
             return
         }
         val game = currentFreeform ?: return
