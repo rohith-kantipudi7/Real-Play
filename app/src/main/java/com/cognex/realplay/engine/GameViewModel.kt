@@ -97,6 +97,9 @@ class GameViewModel(
     private var bestStreak = 0
     private var sessionOver = false
 
+    /** Cursor into [DemoArc.order] for the scripted demo arc; advances each time a game begins. */
+    private var arcCursor = 0
+
     /** Session-elapsed break suggestion (§10 rule 8 — TODDLER only, once per session). */
     private val sessionStartMs = System.currentTimeMillis()
     private var breakDismissed = false
@@ -331,6 +334,25 @@ class GameViewModel(
         )
     }
 
+    /**
+     * Picks the next arc game (from [arcCursor], cyclically) whose scene requirement is met right
+     * now, PINNING it so the exact game plays, then advances the cursor past it. Returns null only
+     * when NO arc game fits this scene (e.g. an empty table) so the caller falls back to the normal
+     * scored pick and never stalls.
+     */
+    private fun selectArc(world: WorldState, cap: SceneCapability, ctx: GenerationContext): SelectionResult? {
+        val order = DemoArc.order
+        for (i in order.indices) {
+            val idx = (arcCursor + i) % order.size
+            val id = order[idx]
+            if (registry.canPlay(id, cap, ctx)) {
+                arcCursor = idx + 1
+                return registry.select(world, cap, ctx, SelectionMode.PINNED, pinnedGeneratorId = id)
+            }
+        }
+        return null
+    }
+
     /** Swaps the challenge only when a different generator now wins (preserves gate progress). */
     private fun prepareNextChallenge(world: WorldState, cap: SceneCapability) {
         // Let the scene settle so we don't build a game from an empty first frame after a pass.
@@ -344,6 +366,18 @@ class GameViewModel(
 
         session.previousTier = Difficulty.skillTier(session.rating, session.previousTier)
         val ctx = buildContext(cap)
+
+        // Scripted demo arc (§5): a SOLO session plays the fixed order (Grab → Triangle → Line-up →
+        // Sort → combo), skipping only a game the scene can't support — never the adaptive pick. The
+        // composer is bypassed so the pinned game type is exactly what plays.
+        if (PartyRuntime.active == null && AppSettings.demoArcEnabled.value) {
+            val arc = selectArc(world, cap, ctx)
+            if (arc != null) {
+                beginPlaying(arc, world)
+                return
+            }
+        }
+
         val deterministic = registry.select(world, cap, ctx, selectionMode)
 
         // No cloud/on-device model available → play the deterministic game immediately.

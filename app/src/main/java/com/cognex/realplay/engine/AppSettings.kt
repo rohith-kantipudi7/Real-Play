@@ -20,6 +20,9 @@ import kotlinx.coroutines.flow.asStateFlow
  *  - [devOverlayEnabled]: shows raw internal numbers (scene richness terms, generator scores,
  *                         difficulty "why" line) on top of the camera preview. Off by default —
  *                         these are debugging aids, not something a player should see.
+ *  - [demoArcEnabled]   : play the fixed demo order (Grab → Triangle → Line-up → Sort → Hold & Pose)
+ *                         in sequence instead of the adaptive scored pick (§5, [DemoArc]). On by
+ *                         default so a demo is predictable; turn off for adaptive, scene-driven play.
  */
 object AppSettings {
     private val _forceTrackOnly = MutableStateFlow(false)
@@ -34,8 +37,12 @@ object AppSettings {
     private val _devOverlayEnabled = MutableStateFlow(false)
     val devOverlayEnabled: StateFlow<Boolean> = _devOverlayEnabled.asStateFlow()
 
+    private val _demoArcEnabled = MutableStateFlow(true)
+    val demoArcEnabled: StateFlow<Boolean> = _demoArcEnabled.asStateFlow()
+
     fun setForceTrackOnly(value: Boolean) { _forceTrackOnly.value = value }
     fun setMuted(value: Boolean) { _muted.value = value }
     fun setAiComposerEnabled(value: Boolean) { _aiComposerEnabled.value = value }
     fun setDevOverlayEnabled(value: Boolean) { _devOverlayEnabled.value = value }
+    fun setDemoArcEnabled(value: Boolean) { _demoArcEnabled.value = value }
 }

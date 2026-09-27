@@ -64,6 +64,29 @@ fun SettingsScreen(
         }
 
         Spacer(Modifier.height(RpSpace.xl))
+        SectionLabel("Games")
+        Spacer(Modifier.height(8.dp))
+        RpCard(modifier = Modifier.fillMaxWidth()) {
+            SectionBody {
+                val demoArc by AppSettings.demoArcEnabled.collectAsState()
+                ToggleRow(
+                    label = "Play the demo game order",
+                    checked = demoArc,
+                    onCheckedChange = AppSettings::setDemoArcEnabled,
+                    divider = false
+                )
+                Text(
+                    text = "Plays the fixed demo sequence — Grab \u2192 Triangle \u2192 Line-up \u2192 " +
+                        "Sort \u2192 Hold & Pose \u2014 in order, skipping only a game your table can't " +
+                        "support. Turn off for adaptive games chosen from what the camera sees.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+            }
+        }
+
+        Spacer(Modifier.height(RpSpace.xl))
         SectionLabel("AI composer")
         Spacer(Modifier.height(8.dp))
         RpCard(modifier = Modifier.fillMaxWidth()) {

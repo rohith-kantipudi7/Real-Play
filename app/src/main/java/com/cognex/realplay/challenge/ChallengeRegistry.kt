@@ -118,6 +118,18 @@ class ChallengeRegistry(generators: List<ChallengeGenerator>) {
     fun possibleCount(cap: SceneCapability, ctx: GenerationContext): Int =
         generators.count { scoreOf(it, cap, ctx).score > 0f }
 
+    /**
+     * Whether the generator with [generatorId] CAN bind in this scene — its scene requirement is met
+     * and its feasibility is positive. Deliberately IGNORES age/tier gating and novelty, so the
+     * scripted [com.cognex.realplay.engine.DemoArc] can play a game on any tier as long as the scene
+     * supports it. Unknown id → false.
+     */
+    fun canPlay(generatorId: String, cap: SceneCapability, ctx: GenerationContext): Boolean {
+        val gen = generators.firstOrNull { it.id == generatorId } ?: return false
+        if (gen.requires.unmetReason(cap) != null) return false
+        return gen.feasibility(cap, ctx) > 0f
+    }
+
 
     private fun scoreOf(gen: ChallengeGenerator, cap: SceneCapability, ctx: GenerationContext): RankedCandidate {
         // 1. requirement + capability pre-filter.

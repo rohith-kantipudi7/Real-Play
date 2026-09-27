@@ -10,6 +10,7 @@ import com.cognex.realplay.verify.RuleId
 import com.cognex.realplay.verify.VerifierRegistry
 import com.cognex.realplay.world.ColorTag
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -136,5 +137,21 @@ class DemoGamesGeneratorsTest {
         assertNotNull(registry.verifierFor(RuleId.COLLINEAR))
         assertNotNull(registry.verifierFor(RuleId.SIZE_ORDER))
         assertNotNull(registry.verifierFor(RuleId.GROUP_CLUSTERED))
+    }
+
+    // ── Demo arc wiring ──────────────────────────────────────────────────────
+
+    @Test fun demoArc_idsAllExistInRegistry() {
+        val ids = ChallengeRegistry.default().generators.map { it.id }.toSet()
+        assertTrue(com.cognex.realplay.engine.DemoArc.order.all { it in ids })
+    }
+
+    @Test fun canPlay_ignoresAgeGate_butHonoursRequirement() {
+        val reg = ChallengeRegistry.default()
+        // Triangle (G7) needs 3 movable; ignore tier via canPlay — true on EARLY when objects exist.
+        val threeMovable = CFix.cap(movableCount = 3, nameableCount = 3, spread = 0.6f)
+        assertTrue(reg.canPlay("G7", threeMovable, CFix.ctx(ageBand = AgeBand.EARLY)))
+        // But false when the scene lacks the objects, regardless of tier.
+        assertFalse(reg.canPlay("G7", CFix.cap(movableCount = 1), CFix.ctx(ageBand = AgeBand.OLDER)))
     }
 }
