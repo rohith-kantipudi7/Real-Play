@@ -39,7 +39,6 @@ import com.cognex.realplay.perception.ObjectDetectionPipeline
 import com.cognex.realplay.ui.camera.CameraPermissionGate
 import com.cognex.realplay.ui.camera.CameraPreview
 import com.cognex.realplay.ui.common.RpButton
-import com.cognex.realplay.ui.common.RpChip
 import com.cognex.realplay.ui.common.RpOutlinedButton
 import com.cognex.realplay.ui.overlay.MinimalTrackerOverlay
 import com.cognex.realplay.ui.overlay.OverlayCanvas
@@ -270,19 +269,6 @@ fun CalibrationScreen(onReady: () -> Unit, onBack: () -> Unit) {
                     .padding(RpSpace.lg),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Audience tier — sets the starting difficulty (and Toddler = basic games only).
-                var audience by remember { mutableStateOf(com.cognex.realplay.engine.SessionConfig.audience) }
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(bottom = RpSpace.sm),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    com.cognex.realplay.engine.Audience.entries.forEach { a ->
-                        RpChip(a.label, audience == a, Modifier.weight(1f)) {
-                            audience = a
-                            com.cognex.realplay.engine.SessionConfig.audience = a
-                        }
-                    }
-                }
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)

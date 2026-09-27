@@ -12,6 +12,7 @@ import com.cognex.realplay.engine.PlayMode
 import com.cognex.realplay.engine.SessionConfig
 import com.cognex.realplay.engine.Audience
 import com.cognex.realplay.challenge.AgeBand
+import com.cognex.realplay.ui.audience.AudienceScreen
 import com.cognex.realplay.ui.calibration.CalibrationScreen
 import com.cognex.realplay.ui.game.GameScreen
 import com.cognex.realplay.ui.home.HomeScreen
@@ -43,7 +44,8 @@ fun RealPlayNavHost(
                     SessionConfig.mode = PlayMode.OBJECTS
                     SessionConfig.audience = Audience.PLAYER
                     SessionConfig.playerCount = 1
-                    navController.navigate(Routes.CALIBRATION)
+                    // Difficulty is chosen on its own screen BEFORE the camera opens.
+                    navController.navigate(Routes.AUDIENCE)
                 },
                 onParty = { navController.navigate(Routes.PARTY_ROSTER) },
                 onVrPreview = { navController.navigate(Routes.VR_PREVIEW) },
@@ -52,6 +54,12 @@ fun RealPlayNavHost(
                     PartyRuntime.clear()
                     navController.navigate(Routes.MODE_SELECT)
                 }
+            )
+        }
+        composable(Routes.AUDIENCE) {
+            AudienceScreen(
+                onContinue = { navController.navigate(Routes.CALIBRATION) },
+                onBack = { navController.popBackStack() }
             )
         }
         composable(Routes.MODE_SELECT) {

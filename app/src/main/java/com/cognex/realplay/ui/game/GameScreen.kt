@@ -10,6 +10,7 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -280,6 +281,20 @@ fun GameScreen(onFinish: () -> Unit, onBack: () -> Unit) {
                 RpButton(text = "Finish", onClick = { vm.finish() }, modifier = Modifier.weight(1f))
             }
 
+            // Skip escape hatch (top-right, below the HUD) — some scenes can't complete a given
+            // game (missing object, impossible arrangement). Solo only, so it never collides with
+            // the PARTY round badge; visible only while a game is actually in play.
+            if ((model.hud.status == PlayStatus.PLAYING || model.hud.status == PlayStatus.COACHING) &&
+                PartyRuntime.active == null
+            ) {
+                SkipPill(
+                    onClick = { vm.skip() },
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(top = 108.dp, end = 16.dp)
+                )
+            }
+
             // Pre-challenge briefing + countdown (on top of everything).
             BriefingOverlay(
                 challengeKey = model.hud.challengeIndex,
@@ -409,6 +424,31 @@ private fun BreakSuggestionBanner(onDismiss: () -> Unit) {
             )
             RpOutlinedButton(text = "Keep playing", onClick = onDismiss)
         }
+    }
+}
+
+/** A compact "Skip" pill (top-right) that abandons the current game and composes a fresh one. */
+@Composable
+private fun SkipPill(onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val shape = RoundedCornerShape(RpRadius.xl)
+    Row(
+        modifier = modifier
+            .shadow(4.dp, shape, clip = false)
+            .clip(shape)
+            .background(RpNavyDeep.copy(alpha = 0.82f))
+            .border(1.dp, Color(0x33FFFFFF), shape)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = "Skip game",
+            color = Color.White,
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.SemiBold
+        )
+        Spacer(Modifier.size(6.dp))
+        Text(text = "\u23ED", color = Color(0xFF7CD4FF), style = MaterialTheme.typography.labelLarge)
     }
 }
 

@@ -183,6 +183,50 @@ class GameViewModel(
         _ui.value = _ui.value.copy(sessionOver = true)
     }
 
+    /**
+     * Skips the current game and moves straight to a fresh one — some scenes genuinely can't
+     * complete a given challenge (missing object, impossible arrangement). It scores nothing, breaks
+     * the streak and eases the difficulty a little (like a fail), then composes the next game after a
+     * short beat. No fail buzzer — the transition reads as "new game coming up", not a loss.
+     */
+    fun skip() {
+        if (sessionOver) return
+        val spec = selection?.spec ?: return
+        session.recordFail()
+        bestStreak = maxOf(bestStreak, session.streak)
+        SessionResults.record(
+            ChallengeResult(
+                index = challengeIndex,
+                type = spec.type.name,
+                winnerId = selection?.winnerId ?: "",
+                passed = false,
+                timedOut = false,
+                score = 0,
+                stepCount = spec.steps.size,
+                completedSteps = mission?.completedSteps() ?: 0,
+                evidence = lastEvidence
+            ),
+            totalScore = session.totalScore,
+            bestStreak = bestStreak
+        )
+        _cues.value = emptyList()
+        sm.reset(GameState.IDLE)
+        _ui.value = _ui.value.copy(
+            status = PlayStatus.COMPOSING,
+            instruction = "New game coming up\u2026",
+            stepProgress = 0f,
+            coachingHint = null,
+            evidence = emptyList(),
+            score = session.totalScore,
+            streak = session.streak,
+            timeRemainingMs = null,
+            timeFraction = null,
+            retriesLeft = retriesLeft
+        )
+        // A brief calm hold, then the frame loop clears the mission and composes the next game.
+        advanceAtMs = System.currentTimeMillis() + SKIP_HOLD_MS
+    }
+
     /** Dismisses the break suggestion for the rest of this session (§10 rule 8). */
     fun dismissBreak() {
         breakDismissed = true
@@ -554,5 +598,7 @@ class GameViewModel(
         const val SETTLE_MS = 1_200L
         /** How long the "Level Complete" celebration holds before the next game composes (§3a). */
         const val LEVEL_DONE_MS = 2_000L
+        /** Short calm beat after a skip before the next game composes. */
+        const val SKIP_HOLD_MS = 650L
     }
 }
