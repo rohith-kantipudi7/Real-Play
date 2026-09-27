@@ -124,6 +124,11 @@ class ChallengeRegistry(generators: List<ChallengeGenerator>) {
         gen.requires.unmetReason(cap)?.let { reason ->
             return RankedCandidate(gen.id, gen.type, 0f, 0f, 0f, 0f, 0f, reason)
         }
+        // 1b. TODDLER plays BASIC games only (find + colour + last-resort) — geometry/zone/pose/
+        // memory are excluded regardless of feasibility (§ audience control, §10).
+        if (ctx.ageBand == AgeBand.TODDLER && gen.type !in TODDLER_BASIC_TYPES) {
+            return RankedCandidate(gen.id, gen.type, 0f, 0f, 0f, 0f, 0f, "basic games only for toddler")
+        }
         // 2. age gate.
         val ageGate = gen.ageGate(ctx.ageBand)
         if (ageGate <= 0f) {
@@ -178,6 +183,11 @@ class ChallengeRegistry(generators: List<ChallengeGenerator>) {
     }
 
     companion object {
+        /** The only game types offered to TODDLER — basic find/colour, never geometry/pose/memory. */
+        private val TODDLER_BASIC_TYPES = setOf(
+            ChallengeType.FIND_COLOR, ChallengeType.LAST_RESORT, ChallengeType.MOVE_CLOSE
+        )
+
         /** A tiny helper for callers that only need the max score present, for the capability card. */
         fun topScore(ranked: List<RankedCandidate>): Float =
             ranked.fold(0f) { acc, c -> max(acc, c.score) }

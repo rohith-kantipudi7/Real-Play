@@ -263,20 +263,38 @@ fun CalibrationScreen(onReady: () -> Unit, onBack: () -> Unit) {
                     .height(200.dp)
                     .background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xE6000000))))
             )
-            Row(
+            Column(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
                     .padding(RpSpace.lg),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                RpOutlinedButton(text = "Back", onClick = onBack, modifier = Modifier.weight(1f))
-                RpButton(
-                    text = if (listed.isEmpty()) "Point at objects\u2026" else "Play with these",
-                    onClick = onReady,
-                    enabled = listed.isNotEmpty(),
-                    modifier = Modifier.weight(1.4f)
-                )
+                // Audience tier — sets the starting difficulty (and Toddler = basic games only).
+                var audience by remember { mutableStateOf(com.cognex.realplay.engine.SessionConfig.audience) }
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = RpSpace.sm),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    com.cognex.realplay.engine.Audience.entries.forEach { a ->
+                        RpChip(a.label, audience == a, Modifier.weight(1f)) {
+                            audience = a
+                            com.cognex.realplay.engine.SessionConfig.audience = a
+                        }
+                    }
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    RpOutlinedButton(text = "Back", onClick = onBack, modifier = Modifier.weight(1f))
+                    RpButton(
+                        text = if (listed.isEmpty()) "Point at objects\u2026" else "Play with these",
+                        onClick = onReady,
+                        enabled = listed.isNotEmpty(),
+                        modifier = Modifier.weight(1.4f)
+                    )
+                }
             }
         }
     }

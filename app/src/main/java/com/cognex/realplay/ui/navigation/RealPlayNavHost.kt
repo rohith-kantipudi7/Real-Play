@@ -10,6 +10,7 @@ import com.cognex.realplay.device.PerformanceProfile
 import com.cognex.realplay.engine.PartyRuntime
 import com.cognex.realplay.engine.PlayMode
 import com.cognex.realplay.engine.SessionConfig
+import com.cognex.realplay.engine.Audience
 import com.cognex.realplay.challenge.AgeBand
 import com.cognex.realplay.ui.calibration.CalibrationScreen
 import com.cognex.realplay.ui.game.GameScreen
@@ -40,7 +41,7 @@ fun RealPlayNavHost(
                     // Point & Play (§1): zero-config — objects by default so a body-pose game only
                     // appears when a human is explicitly chosen (Home → Advanced → Body/Mixed).
                     SessionConfig.mode = PlayMode.OBJECTS
-                    SessionConfig.ageBand = AgeBand.MIDDLE
+                    SessionConfig.audience = Audience.PLAYER
                     SessionConfig.playerCount = 1
                     navController.navigate(Routes.CALIBRATION)
                 },

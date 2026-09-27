@@ -44,10 +44,10 @@ session, Toddler stays gentle (no ramp, §10 policy).
 | Task | Status | Notes |
 |---|---|---|
 | Difficulty director + age bands + knobs | ✅ | Already drives per‑tier tolerances, timers, step budget |
-| Single **Audience** selector UI (4 tiers) | ⬜ | Toddler / Kids / Player / Pro |
-| Map Audience → AgeBand + Tier | ⬜ | Toddler→TODDLER, Kids→EARLY, Player→MIDDLE, Pro→OLDER |
-| Restrict Toddler to basic games (find, colour) | ⬜ | Filter the registry pool for the TODDLER band |
-| Auto in Point & Play; overridable in Advanced; demo pinned to Pro | ⬜ | |
+| Single **Audience** selector UI (4 tiers) | ✅ | Toddler / Kids / Player / Pro — chip row on the scan screen |
+| Map Audience → AgeBand + Tier | ✅ | `Audience` enum → `SessionConfig.audience` setter updates `ageBand` |
+| Restrict Toddler to basic games (find, colour) | ✅ | `ChallengeRegistry` filters non-basic types for TODDLER |
+| Auto in Point & Play; overridable in Advanced; demo pinned to Pro | 🟡 | Point & Play defaults Player; selector on scan screen; Advanced still has old age picker |
 
 | Task | Status | Notes |
 |---|---|---|
