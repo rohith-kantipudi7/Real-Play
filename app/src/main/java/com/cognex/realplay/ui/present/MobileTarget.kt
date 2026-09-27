@@ -35,6 +35,18 @@ object MobileTarget {
             )
         }
 
+    /** Object highlights → minimal smooth tracker dots (no boxes), keyed by stable track id. */
+    fun trackTargets(model: RenderModel): List<com.cognex.realplay.ui.overlay.TrackTarget> =
+        model.scene.overlays.filterIsInstance<Overlay.Highlight>().map { h ->
+            com.cognex.realplay.ui.overlay.TrackTarget(
+                key = h.trackId?.toString() ?: (h.label ?: "?"),
+                nx = (h.box.left + h.box.right) / 2f,
+                ny = (h.box.top + h.box.bottom) / 2f,
+                label = h.label ?: "",
+                color = colorForTag(h.color)
+            )
+        }
+
     /** Zone polygons → zone shapes. */
     fun zones(model: RenderModel): List<OverlayZone> =
         model.scene.overlays.filterIsInstance<Overlay.ZoneShape>().map { z ->

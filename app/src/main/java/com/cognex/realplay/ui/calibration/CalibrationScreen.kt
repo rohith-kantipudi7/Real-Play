@@ -41,8 +41,10 @@ import com.cognex.realplay.ui.camera.CameraPreview
 import com.cognex.realplay.ui.common.RpButton
 import com.cognex.realplay.ui.common.RpChip
 import com.cognex.realplay.ui.common.RpOutlinedButton
+import com.cognex.realplay.ui.overlay.MinimalTrackerOverlay
 import com.cognex.realplay.ui.overlay.OverlayCanvas
 import com.cognex.realplay.ui.overlay.OverlayDetection
+import com.cognex.realplay.ui.overlay.TrackTarget
 import com.cognex.realplay.ui.theme.RpNavyDeep
 import com.cognex.realplay.ui.theme.RpRadius
 import com.cognex.realplay.ui.theme.RpSpace
@@ -50,7 +52,9 @@ import com.cognex.realplay.world.ColorTag
 import com.cognex.realplay.world.RichnessBranch
 import com.cognex.realplay.world.SceneCapabilityReport
 import com.cognex.realplay.world.WorldState
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * S1/S2 calibration: live camera preview with the coordinate-mapper calibration overlay, live
@@ -71,17 +75,21 @@ fun CalibrationScreen(onReady: () -> Unit, onBack: () -> Unit) {
         var world by remember { mutableStateOf(WorldState.EMPTY) }
         var capReport by remember { mutableStateOf<SceneCapabilityReport?>(null) }
 
-        // Build the detection pipeline once for the lifetime of this screen.
+        // Build the detection pipeline once for the lifetime of this screen. Created OFF the main
+        // thread so tapping Play opens the camera instantly instead of freezing on model load.
         DisposableEffect(controller) {
-            val pipeline = ObjectDetectionPipeline(context.applicationContext)
-            controller.analyzer.frameSink = { pipeline.onFrame(it) }
-            val worldJob = scope.launch { pipeline.worldState.collect { world = it } }
-            val capJob = scope.launch { pipeline.capabilityReport.collect { capReport = it } }
+            var pipeline: ObjectDetectionPipeline? = null
+            val initJob = scope.launch {
+                val p = withContext(Dispatchers.Default) { ObjectDetectionPipeline(context.applicationContext) }
+                pipeline = p
+                controller.analyzer.frameSink = { p.onFrame(it) }
+                launch { p.worldState.collect { world = it } }
+                launch { p.capabilityReport.collect { capReport = it } }
+            }
             onDispose {
                 controller.analyzer.frameSink = null
-                worldJob.cancel()
-                capJob.cancel()
-                pipeline.close()
+                initJob.cancel()
+                pipeline?.close()
                 world = WorldState.EMPTY
                 capReport = null
             }
@@ -113,6 +121,8 @@ fun CalibrationScreen(onReady: () -> Unit, onBack: () -> Unit) {
         val flying = remember { mutableStateListOf<FlyingSpec>() }
         // Labels already listed or in flight, so each type flies up exactly once.
         val seen = remember { mutableSetOf<String>() }
+        // Wall-clock of the last frame each label was seen, for debounced removal from the list.
+        val lastSeen = remember { mutableMapOf<String, Long>() }
         var nextId by remember { mutableStateOf(0L) }
 
         BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
@@ -123,8 +133,8 @@ fun CalibrationScreen(onReady: () -> Unit, onBack: () -> Unit) {
 
             CameraPreview(controller = controller, modifier = Modifier.fillMaxSize())
 
-            // Fly a chip up from each newly-settled object's position into the list — no bounding
-            // boxes; the list IS the "what I can see" reveal (scan-list UX).
+            // Fly a chip up from each newly-settled object's position into the list, and remove a
+            // chip when its object has been gone for a moment (debounced against flicker).
             LaunchedEffect(world) {
                 val info = analysisInfo ?: return@LaunchedEffect
                 if (widthPx < 1f || heightPx < 1f) return@LaunchedEffect
@@ -135,14 +145,43 @@ fun CalibrationScreen(onReady: () -> Unit, onBack: () -> Unit) {
                     viewW = widthPx.toInt(), viewH = heightPx.toInt(),
                     scaleType = com.cognex.realplay.camera.ScaleType.FILL_CENTER
                 )
+                val now = System.currentTimeMillis()
                 world.objects.forEach { obj ->
                     val label = obj.label
-                    if (obj.stable && label.isNotBlank() && label !in seen) {
-                        seen.add(label)
-                        val p = mapper.mapPoint((obj.box.left + obj.box.right) / 2f, (obj.box.top + obj.box.bottom) / 2f)
-                        flying.add(FlyingSpec(nextId++, label, p.x, p.y))
+                    if (obj.stable && label.isNotBlank()) {
+                        lastSeen[label] = now
+                        if (label !in seen) {
+                            seen.add(label)
+                            val p = mapper.mapPoint((obj.box.left + obj.box.right) / 2f, (obj.box.top + obj.box.bottom) / 2f)
+                            flying.add(FlyingSpec(nextId++, label, p.x, p.y))
+                        }
                     }
                 }
+                val gone = listed.filter { now - (lastSeen[it] ?: 0L) > 1200L }
+                if (gone.isNotEmpty()) {
+                    listed.removeAll(gone)
+                    gone.forEach { seen.remove(it); lastSeen.remove(it) }
+                }
+            }
+
+            // Minimal live tracker dots on each detected object (no boxes) — the list has the names.
+            if (!devOverlay) {
+                val trackTargets = world.objects.filter { it.stable }.map { obj ->
+                    TrackTarget(
+                        key = obj.trackId.toString(),
+                        nx = (obj.box.left + obj.box.right) / 2f,
+                        ny = (obj.box.top + obj.box.bottom) / 2f,
+                        label = "",
+                        color = if (obj.ambiguous) AmbiguousBoxColor else colorForTag(obj.color)
+                    )
+                }
+                MinimalTrackerOverlay(
+                    analysisInfo = analysisInfo,
+                    isFrontCamera = controller.isFrontCamera,
+                    targets = trackTargets,
+                    showLabels = false,
+                    modifier = Modifier.fillMaxSize()
+                )
             }
 
             // Developer overlay (boxes + raw counts) — off by default (Settings → Developer).

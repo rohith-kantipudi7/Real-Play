@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -54,14 +55,17 @@ import com.cognex.realplay.ui.camera.CameraPreview
 import com.cognex.realplay.ui.common.RpButton
 import com.cognex.realplay.ui.common.RpOutlinedButton
 import com.cognex.realplay.ui.overlay.CueCanvas
+import com.cognex.realplay.ui.overlay.MinimalTrackerOverlay
 import com.cognex.realplay.ui.overlay.OverlayCanvas
 import com.cognex.realplay.ui.present.MobileTarget
 import com.cognex.realplay.ui.theme.RpNavyDeep
 import com.cognex.realplay.ui.theme.RpNavyElevated
 import com.cognex.realplay.ui.theme.RpRadius
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * The live game loop (Architecture §13 S5/S6). Preview + detection overlay, the pre-challenge
@@ -89,15 +93,16 @@ fun GameScreen(onFinish: () -> Unit, onBack: () -> Unit) {
         val analysisInfo by controller.analyzer.analysisInfo.collectAsState()
 
         DisposableEffect(controller) {
-            val pipeline = ObjectDetectionPipeline(context.applicationContext)
-            // Enable pose for Body/Mixed sessions when a pose backend exists; OBJECTS mode keeps
-            // pose fully disabled so the object-only path is untouched (§20 invariant 12).
-            pipeline.setPoseActive(
-                SessionConfig.mode != PlayMode.OBJECTS && pipeline.poseAvailable
-            )
-            controller.analyzer.frameSink = { pipeline.onFrame(it) }
-            val job = scope.launch {
-                combine(pipeline.worldState, pipeline.capabilityReport) { world, report ->
+            // Created OFF the main thread so entering the game doesn't freeze on model load.
+            var pipeline: ObjectDetectionPipeline? = null
+            val initJob = scope.launch {
+                val p = withContext(Dispatchers.Default) { ObjectDetectionPipeline(context.applicationContext) }
+                pipeline = p
+                // Enable pose for Body/Mixed sessions when a pose backend exists; OBJECTS mode keeps
+                // pose fully disabled so the object-only path is untouched (§20 invariant 12).
+                p.setPoseActive(SessionConfig.mode != PlayMode.OBJECTS && p.poseAvailable)
+                controller.analyzer.frameSink = { p.onFrame(it) }
+                combine(p.worldState, p.capabilityReport) { world, report ->
                     world to report
                 }.collect { (world, report) ->
                     // The engine composes the device-independent RenderModel from this frame; the
@@ -107,8 +112,8 @@ fun GameScreen(onFinish: () -> Unit, onBack: () -> Unit) {
             }
             onDispose {
                 controller.analyzer.frameSink = null
-                job.cancel()
-                pipeline.close()
+                initJob.cancel()
+                pipeline?.close()
             }
         }
         DisposableEffect(controller) { onDispose { controller.shutdown() } }
@@ -191,14 +196,21 @@ fun GameScreen(onFinish: () -> Unit, onBack: () -> Unit) {
 
         Box(modifier = Modifier.fillMaxSize()) {
             CameraPreview(controller = controller, modifier = Modifier.fillMaxSize())
+            // Zones + player skeletons still use the canvas; objects use the minimal tracker (no boxes).
             OverlayCanvas(
                 analysisInfo = analysisInfo,
                 isFrontCamera = controller.isFrontCamera,
                 modifier = Modifier.fillMaxSize(),
                 showCalibration = false,
-                detections = MobileTarget.detections(model),
+                detections = emptyList(),
                 zones = MobileTarget.zones(model),
                 players = MobileTarget.players(model)
+            )
+            MinimalTrackerOverlay(
+                analysisInfo = analysisInfo,
+                isFrontCamera = controller.isFrontCamera,
+                targets = MobileTarget.trackTargets(model),
+                modifier = Modifier.fillMaxSize()
             )
             // Visual-first coaching layer, drawn over the perception overlay (§26).
             CueCanvas(
@@ -416,9 +428,9 @@ private fun PartyRoundBadge(remainingMs: Long, modifier: Modifier = Modifier) {
 }
 
 /**
- * The "Creating your game…" overlay (Architecture §6.5 v3.7) shown while the cloud/on-device model
- * composes the next game — a calm full-screen scrim with a spinner that disappears the instant the
- * briefing countdown begins.
+ * The between-games beat (Architecture §6.5 v3.7, §3a). While the next game is being prepared this
+ * shows a calm, on-brand "Get ready" with pulsing dots over the live camera — never a spinner or
+ * any "loading"/"generating" language.
  */
 @Composable
 private fun ComposingOverlay(visible: Boolean, message: String) {
@@ -430,29 +442,50 @@ private fun ComposingOverlay(visible: Boolean, message: String) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color(0xE60B1220)),
+                .background(Color(0x800B1220)),
             contentAlignment = Alignment.Center
         ) {
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(20.dp)
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                androidx.compose.material3.CircularProgressIndicator(
-                    color = Color(0xFF25E0C8),
-                    strokeWidth = 3.dp
-                )
+                PulsingDots()
                 Text(
-                    text = message,
+                    text = "Get ready",
                     color = Color.White,
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.SemiBold
                 )
-                Text(
-                    text = "tailored to what's on your table",
-                    color = Color(0xFF8CA0B3),
-                    style = MaterialTheme.typography.bodyMedium
-                )
             }
+        }
+    }
+}
+
+/** Three softly pulsing dots — a calm "next game is coming" cue, not a loading spinner. */
+@Composable
+private fun PulsingDots() {
+    val t = rememberInfiniteTransition(label = "dots")
+    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        for (i in 0..2) {
+            val a by t.animateFloat(
+                initialValue = 0.3f,
+                targetValue = 1f,
+                animationSpec = infiniteRepeatable(
+                    tween(560, delayMillis = i * 160, easing = LinearEasing),
+                    RepeatMode.Reverse
+                ),
+                label = "dot$i"
+            )
+            Box(
+                modifier = Modifier
+                    .size(14.dp)
+                    .graphicsLayer {
+                        alpha = a
+                        val s = 0.7f + 0.3f * a
+                        scaleX = s; scaleY = s
+                    }
+                    .background(Color(0xFF25E0C8), androidx.compose.foundation.shape.CircleShape)
+            )
         }
     }
 }
