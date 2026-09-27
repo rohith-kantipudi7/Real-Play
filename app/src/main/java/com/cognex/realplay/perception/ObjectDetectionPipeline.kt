@@ -86,15 +86,15 @@ class ObjectDetectionPipeline(
                 dynamics = if (poseActive) latestDynamics else PlayerDynamics.EMPTY
             )
         }
-        // Prefer a side-loaded YOLO (ONNX) model when present; else the bundled EfficientDet (§S2).
-        val yolo = YoloOnnxDetector.createIfPresent(context, onResults)
-        val real = if (yolo == null) MediaPipeObjectDetector.create(context, onResults) else null
+        // YOLO (ONNX) disabled — it under-performed the bundled EfficientDet on the demo kit. The
+        // YoloOnnxDetector class is kept for future opt-in but is not used here (§S2).
+        val real = MediaPipeObjectDetector.create(context, onResults)
         mediaPipe = real
-        detector = yolo ?: real
-        when {
-            yolo != null -> RpLog.i(RpLog.Tag.PERCEPTION, "Detection pipeline: YOLO (ONNX) detector")
-            real != null -> RpLog.i(RpLog.Tag.PERCEPTION, "Detection pipeline: real MediaPipe detector")
-            else -> RpLog.w(RpLog.Tag.PERCEPTION, "No detector could be created; no detections will be produced")
+        detector = real
+        if (real != null) {
+            RpLog.i(RpLog.Tag.PERCEPTION, "Detection pipeline: real MediaPipe detector")
+        } else {
+            RpLog.w(RpLog.Tag.PERCEPTION, "No detector could be created; no detections will be produced")
         }
 
         // Pose results (async, own MP thread): assign identities and accumulate dynamics, then stash
