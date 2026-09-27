@@ -120,6 +120,22 @@ class TrackerTest {
     }
 
     @Test
+    fun carriedToNewLocation_reIdsSameId() {
+        val t = Tracker()
+        // Confirm a red cup on the left.
+        t.update(listOf(det("cup", 0.2f, 0.5f, color = ColorTag.RED)), 1000)
+        t.update(listOf(det("cup", 0.2f, 0.5f, color = ColorTag.RED)), 1100)
+        val id = t.update(listOf(det("cup", 0.2f, 0.5f, color = ColorTag.RED)), 1200)[0].trackId
+        // It's picked up (occluded) briefly, then reappears FAR to the right — the same object at a
+        // new location must keep its id (re-identification), not spawn a new one.
+        t.update(emptyList(), 1300)
+        t.update(emptyList(), 1400)
+        val moved = t.update(listOf(det("cup", 0.85f, 0.5f, color = ColorTag.RED)), 1500)
+        assertEquals(1, moved.size)
+        assertEquals(id, moved[0].trackId)
+    }
+
+    @Test
     fun leaving_afterCoastWindow_isDeleted() {
         val t = Tracker()
         t.update(listOf(det("cup", 0.5f, 0.5f)), 1000)

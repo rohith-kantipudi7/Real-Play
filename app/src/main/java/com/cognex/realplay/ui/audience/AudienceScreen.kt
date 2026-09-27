@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -15,7 +16,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.cognex.realplay.engine.AppSettings
 import com.cognex.realplay.engine.Audience
 import com.cognex.realplay.engine.SessionConfig
 import com.cognex.realplay.engine.ToddlerSupervision
@@ -24,6 +27,7 @@ import com.cognex.realplay.ui.common.RpOptionCard
 import com.cognex.realplay.ui.common.RpOutlinedButton
 import com.cognex.realplay.ui.common.RpScaffold
 import com.cognex.realplay.ui.theme.RpAmber
+import com.cognex.realplay.ui.theme.RpOnDarkMuted
 import com.cognex.realplay.ui.theme.RpSpace
 
 /**
@@ -74,6 +78,30 @@ fun AudienceScreen(onContinue: () -> Unit, onBack: () -> Unit) {
             subtitle = "Fast and precise · timed · every game",
             selected = selected == Audience.PRO
         ) { selected = Audience.PRO }
+
+        Spacer(Modifier.height(RpSpace.lg))
+        Text(
+            "Game style",
+            style = MaterialTheme.typography.titleMedium,
+            color = RpOnDarkMuted,
+            fontWeight = FontWeight.SemiBold
+        )
+        Spacer(Modifier.height(RpSpace.sm))
+        var verified by remember { mutableStateOf(AppSettings.verifierEnabled.value) }
+        RpOptionCard(
+            icon = "\uD83C\uDFAF", // target
+            title = "Verified games",
+            subtitle = "The camera checks each game and passes it when you really do it.",
+            selected = verified
+        ) { verified = true; AppSettings.setVerifierEnabled(true) }
+        Spacer(Modifier.height(RpSpace.md))
+        RpOptionCard(
+            icon = "\u2728", // sparkles
+            title = "Freeform (no camera check)",
+            subtitle = "The app invents a fun game, reads it aloud, and gives you 30 seconds.",
+            selected = !verified,
+            accent = RpAmber
+        ) { verified = false; AppSettings.setVerifierEnabled(false) }
 
         Spacer(Modifier.height(RpSpace.xl))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {

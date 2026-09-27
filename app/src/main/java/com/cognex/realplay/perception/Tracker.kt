@@ -103,12 +103,18 @@ class Tracker {
         val iou = SpatialRelations.iou(predBox, det.box)
         val cdist = SpatialRelations.distance(predCenter, det.box.center)
         val sameLabel = track.label == det.label
+        val appearance = track.appearanceDistance(det.color)
+        // Re-identification: a coasting (recently-lost) track may re-claim its object even FAR from
+        // its last spot — same label + matching colour — so an object picked up and carried to a new
+        // place keeps its id and the verifier keeps judging the SAME object at its new location
+        // (§ user request). A still-present same-label object wins its own track spatially first, so
+        // this only fires for the one that actually moved away.
+        val reId = sameLabel && track.missed > 0 && appearance <= REID_APPEARANCE_MAX
         val candidate = if (sameLabel) {
-            iou >= IOU_MATCH || cdist <= CENTROID_FALLBACK
+            iou >= IOU_MATCH || cdist <= CENTROID_FALLBACK || reId
         } else {
             iou >= CROSS_LABEL_IOU
         }
-        val appearance = track.appearanceDistance(det.color)
         val labelPenalty = if (sameLabel) 0f else 0.3f
         val cost = (1f - iou) + 0.5f * cdist + 0.2f * appearance + labelPenalty
         return cost to candidate
@@ -300,6 +306,8 @@ class Tracker {
         const val PROMOTE_HITS = 3
         /** Cap on how far ahead velocity may predict a track's pose for matching (seconds). */
         const val PREDICT_MAX_DT = 0.3f
+        /** Max colour-appearance distance for a far re-identification of a recently-lost track. */
+        const val REID_APPEARANCE_MAX = 0.35f
         // Long coast so a track survives a multi-second detection dropout (occlusion, a missed
         // model frame) — it stays resolvable by its id and re-matches the same object on reappear,
         // instead of being deleted and re-detected as a NEW id mid-game.
