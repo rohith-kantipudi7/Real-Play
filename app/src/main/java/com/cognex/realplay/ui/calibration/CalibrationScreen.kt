@@ -148,25 +148,28 @@ fun CalibrationScreen(onReady: () -> Unit, onBack: () -> Unit) {
                 val now = System.currentTimeMillis()
                 world.objects.forEach { obj ->
                     val label = obj.label
-                    if (obj.stable && label.isNotBlank()) {
+                    if (label.isNotBlank()) {
+                        // Any present object (even briefly unstable) keeps its chip alive so the
+                        // list doesn't flicker; only settle-fly a NEW label once it's stable.
                         lastSeen[label] = now
-                        if (label !in seen) {
+                        if (obj.stable && label !in seen) {
                             seen.add(label)
                             val p = mapper.mapPoint((obj.box.left + obj.box.right) / 2f, (obj.box.top + obj.box.bottom) / 2f)
                             flying.add(FlyingSpec(nextId++, label, p.x, p.y))
                         }
                     }
                 }
-                val gone = listed.filter { now - (lastSeen[it] ?: 0L) > 1200L }
+                val gone = listed.filter { now - (lastSeen[it] ?: 0L) > 2000L }
                 if (gone.isNotEmpty()) {
                     listed.removeAll(gone)
                     gone.forEach { seen.remove(it); lastSeen.remove(it) }
                 }
             }
 
-            // Minimal live tracker dots on each detected object (no boxes) — the list has the names.
+            // Minimal live tracker dots on EVERY tracked object (no boxes) — showing all of them
+            // (not only "stable") keeps the markers steady, the way the old boxes felt.
             if (!devOverlay) {
-                val trackTargets = world.objects.filter { it.stable }.map { obj ->
+                val trackTargets = world.objects.map { obj ->
                     TrackTarget(
                         key = obj.trackId.toString(),
                         nx = (obj.box.left + obj.box.right) / 2f,

@@ -1,12 +1,15 @@
 package com.cognex.realplay.ui.game
 
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -31,7 +34,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
@@ -212,15 +217,6 @@ fun GameScreen(onFinish: () -> Unit, onBack: () -> Unit) {
                 targets = MobileTarget.trackTargets(model),
                 modifier = Modifier.fillMaxSize()
             )
-            // Visual-first coaching layer, drawn over the perception overlay (§26).
-            CueCanvas(
-                analysisInfo = analysisInfo,
-                isFrontCamera = controller.isFrontCamera,
-                cues = MobileTarget.cues(model),
-                pulse = pulse,
-                arrowPhase = arrowPhase,
-                modifier = Modifier.fillMaxSize()
-            )
 
             HudBar(
                 score = model.hud.score,
@@ -254,6 +250,16 @@ fun GameScreen(onFinish: () -> Unit, onBack: () -> Unit) {
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .padding(bottom = 108.dp)
+            )
+
+            // Live mission progress bar — fills from the verifier's step progress and completes the
+            // level automatically when full (§3a). Smoothly animated; hidden between challenges.
+            GameProgressBar(
+                progress = missionProgress(model.hud),
+                visible = model.hud.status == PlayStatus.PLAYING || model.hud.status == PlayStatus.COACHING,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 96.dp)
             )
 
             // Bottom controls.
@@ -540,6 +546,61 @@ private fun LevelCompleteOverlay(visible: Boolean, perfect: Boolean, gainedPoint
                 color = Color(0xFF9FB2C4),
                 style = MaterialTheme.typography.bodyLarge
             )
+        }
+    }
+}
+
+/** Overall mission progress 0→1: completed steps plus the current step's live fraction. */
+private fun missionProgress(hud: Hud): Float {
+    val steps = hud.stepCount.coerceAtLeast(1)
+    return ((hud.completedSteps + hud.stepProgress) / steps).coerceIn(0f, 1f)
+}
+
+/**
+ * The live mission progress bar (§3a) — a smooth bottom bar that fills as the verifier reports
+ * progress and reads "Done!" at 100%, right before the level auto-completes into the celebration.
+ */
+@Composable
+private fun GameProgressBar(progress: Float, visible: Boolean, modifier: Modifier = Modifier) {
+    val anim by animateFloatAsState(
+        targetValue = progress.coerceIn(0f, 1f),
+        animationSpec = tween(300, easing = FastOutSlowInEasing),
+        label = "missionProgress"
+    )
+    androidx.compose.animation.AnimatedVisibility(
+        visible = visible,
+        enter = androidx.compose.animation.fadeIn(),
+        exit = androidx.compose.animation.fadeOut(),
+        modifier = modifier
+    ) {
+        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 28.dp)) {
+            Text(
+                text = when {
+                    anim >= 0.999f -> "Done!"
+                    anim > 0.04f -> "Keep going…"
+                    else -> "Go!"
+                },
+                color = Color(0xFFBFF7EC),
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(bottom = 6.dp)
+            )
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(14.dp)
+                    .clip(RoundedCornerShape(50))
+                    .background(Color(0x66000000))
+                    .border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(50))
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(anim.coerceIn(0f, 1f))
+                        .height(14.dp)
+                        .clip(RoundedCornerShape(50))
+                        .background(Brush.horizontalGradient(listOf(Color(0xFF25E0C8), Color(0xFF57E39B))))
+                )
+            }
         }
     }
 }
