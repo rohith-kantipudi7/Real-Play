@@ -185,7 +185,8 @@ class ChallengeRegistry(generators: List<ChallengeGenerator>) {
     companion object {
         /** The only game types offered to TODDLER — basic find/colour, never geometry/pose/memory. */
         private val TODDLER_BASIC_TYPES = setOf(
-            ChallengeType.FIND_COLOR, ChallengeType.LAST_RESORT, ChallengeType.MOVE_CLOSE
+            ChallengeType.FIND_COLOR, ChallengeType.LAST_RESORT, ChallengeType.MOVE_CLOSE,
+            ChallengeType.GRAB
         )
 
         /** A tiny helper for callers that only need the max score present, for the capability card. */
@@ -205,7 +206,13 @@ class ChallengeRegistry(generators: List<ChallengeGenerator>) {
                 com.cognex.realplay.challenge.generators.G4StatueMatchGenerator(),
                 com.cognex.realplay.challenge.generators.G5RedLightGreenLightGenerator(),
                 com.cognex.realplay.challenge.generators.G6FetchRaceGenerator(),
-                com.cognex.realplay.challenge.generators.G7TriangleBuildGenerator()
+                com.cognex.realplay.challenge.generators.G7TriangleBuildGenerator(),
+                com.cognex.realplay.challenge.generators.GShowNamedGenerator(),
+                com.cognex.realplay.challenge.generators.GLineUpGenerator(),
+                com.cognex.realplay.challenge.generators.GSortSizeGenerator(),
+                com.cognex.realplay.challenge.generators.GGroupColourGenerator(),
+                com.cognex.realplay.challenge.generators.GGroupKindGenerator(),
+                com.cognex.realplay.challenge.generators.GComboPoseGenerator()
             )
         )
     }

@@ -112,18 +112,18 @@ math where possible.
 
 | Game | Player does | Mechanic (verifier) | Needs | Difficulty | Status | Generator |
 |---|---|---|---|---|---|---|
-| **Grab / Spotlight** | Show the **named** object | named object present + prominent/centered | 1 object | Easy (1) | 🟡 new‑small | adapt `G3` / new `GShowNamed` |
-| **Group by colour** | Put the same‑**coloured** things together | one colour clustered + separated | ≥2 colours | Easy–Med (2) | ⬜ new‑med | new `GGroupColour` |
-| **Group by kind** | Put the same‑**kind** things together (cups, bottles…) | one label/shape group clustered + separated | ≥2 kinds | Easy–Med (2) | ⬜ new‑med | new `GGroupKind` |
+| **Grab / Spotlight** | Show the **named** object | named object present + prominent/centered | 1 object | Easy (1) | ✅ | `GShowNamed` (G8) |
+| **Group by colour** | Put the same‑**coloured** things together | one colour clustered + separated | ≥2 colours | Easy–Med (2) | ✅ | `GGroupColour` (G11) |
+| **Group by kind** | Put the same‑**kind** things together (cups, bottles…) | one label/shape group clustered + separated | ≥2 kinds | Easy–Med (2) | ✅ | `GGroupKind` (G12) |
 | **Statue (Pose)** | Copy & hold a body pose | pose landmark match, sustained | person | Med (2) | ✅ | `G4` STATUE_MATCH |
 | **Triangle** | Arrange 3 objects into a triangle | triangle geometry, edges satisfied | 3 objects | Med (3) | ✅ | `G7` TRIANGLE_BUILD |
 | **Together** | Bring 2 objects close | distance between two objects | 2 objects | Med (2) | ✅ | `G1` MOVE_CLOSE *(library only)* |
-| **Line‑up** | Put **all** objects in one straight row | collinearity (low y‑variance, x‑spread) | 3+ objects | Hard (3) | ⬜ new‑small | new `GLineUp` |
-| **Sort by size (↑/↓)** | Order objects **increasing OR decreasing** by size, L→R | x‑order == area‑order in the asked direction | 3+ objects | Hard (4) | ⬜ new‑med | new `GSortSize` |
-| **Shuffle & Restore** | Memorize 3 spots → shuffle **all 3** → put them **back as before** | after all 3 moved, current positions match the recorded original | 3 objects | Hard (4) | ⬜ new‑med | new `GRestore` |
+| **Line‑up** | Put **all** objects in one straight row | collinearity (low y‑variance, x‑spread) | 3+ objects | Hard (3) | ✅ | `GLineUp` (G9) |
+| **Sort by size (↑/↓)** | Order objects **increasing OR decreasing** by size, L→R | x‑order == area‑order in the asked direction | 3+ objects | Hard (4) | ✅ | `GSortSize` (G10) |
+| **Shuffle & Restore** | Memorize 3 spots → shuffle **all 3** → put them **back as before** | after all 3 moved, current positions match the recorded original | 3 objects | Hard (4) | ⬜ new‑med (needs stateful 3‑phase baseline) | new `GRestore` |
 | **Freeze (red light)** | Move on green, freeze on red | motion gating over time | person/objects | Hard (3) | ✅ | `G5` RED_LIGHT_GREEN_LIGHT *(library only)* |
 | **Fetch** | Grab the named object, carry to a spot | grab + carry to region | objects + spot | Hard (3) | ✅ | `G6` FETCH_RACE *(library only)* |
-| **Hold & Pose (combo)** | Hold an object high **and** strike a pose | object‑in‑region **+** pose, simultaneously | person + object | Expert (5) | ⬜ new‑med | new `GComboPose` |
+| **Hold & Pose (combo)** | Hold an object high **and** strike a pose | object‑in‑region **+** pose, simultaneously | person + object | Expert (5) | ✅ | `GComboPose` (G13) |
 
 Notes:
 - **Group by colour** and **Group by kind** are TWO separate games — product owner will test both on

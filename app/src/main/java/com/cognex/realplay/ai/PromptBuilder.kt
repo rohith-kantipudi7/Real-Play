@@ -33,6 +33,12 @@ object PromptBuilder {
         ChallengeType.RED_LIGHT_GREEN_LIGHT -> "freeze all motion during the red light"
         ChallengeType.FETCH_RACE -> "pick up a matching object and carry it to a zone"
         ChallengeType.TRIANGLE_BUILD -> "arrange three objects into a triangle"
+        ChallengeType.GRAB -> "show the camera the named object"
+        ChallengeType.LINE_UP -> "line all the objects up in one straight row"
+        ChallengeType.SORT_SIZE -> "order the objects by size from left to right"
+        ChallengeType.GROUP_COLOR -> "gather the same-coloured objects together, away from the rest"
+        ChallengeType.GROUP_KIND -> "gather the same-kind objects together, away from the rest"
+        ChallengeType.COMBO_POSE -> "hold an object and strike a body pose at once"
     }
 
     fun skillsFrom(ranked: List<RankedCandidate>): List<SkillDigest> =

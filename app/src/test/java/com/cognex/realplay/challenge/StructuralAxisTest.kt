@@ -251,10 +251,11 @@ class StructuralAxisTest {
         assertNotNull(spec.steps[0].params["minAngle"])
     }
 
-    // ── registry now ships eight generators ───────────────────────────────────
+    // ── registry ships the full demo game library ─────────────────────────────
 
     @Test
-    fun registry_shipsEightGenerators() {
-        assertEquals(8, ChallengeRegistry.default().generators.size)
+    fun registry_shipsAllGenerators() {
+        // G0–G7 base + G8–G13 demo library.
+        assertEquals(14, ChallengeRegistry.default().generators.size)
     }
 }

@@ -7,7 +7,10 @@ package com.cognex.realplay.verify
  * the validator rejects anything else. Adding a rule here without a corresponding [Verifier]
  * makes [VerifierRegistry] throw at construction — the registry is never allowed to silently skip.
  *
- * The list is EXACTLY §4.1 — nothing more, nothing less.
+ * The base set is EXACTLY §4.1; the multi-object geometry primitives [COLLINEAR], [SIZE_ORDER] and
+ * [GROUP_CLUSTERED] extend it for the demo game library (line-up, sort-by-size, group-by-colour/
+ * kind). Each is deterministic, camera-space, and — like every other rule — backed by a registered
+ * [Verifier], so the anti-hallucination guarantee (no rule ever passes unverified) still holds.
  */
 enum class RuleId {
     // Distance
@@ -35,6 +38,9 @@ enum class RuleId {
     // Multi-object geometry
     NON_DEGENERATE_TRIANGLE,
     ARRANGEMENT_MATCH,
+    COLLINEAR,
+    SIZE_ORDER,
+    GROUP_CLUSTERED,
 
     // Pose
     POSE_MATCH,

@@ -126,7 +126,8 @@ object CuePlanner {
                 }
             }
 
-            RuleId.ARRANGEMENT_MATCH, RuleId.COUNT_EQUALS -> highlightAll(spec, world)
+            RuleId.ARRANGEMENT_MATCH, RuleId.COUNT_EQUALS,
+            RuleId.COLLINEAR, RuleId.SIZE_ORDER, RuleId.GROUP_CLUSTERED -> highlightAll(spec, world)
 
             // Pose / motion — loop a ghost demonstration of the target action (S8).
             RuleId.POSE_MATCH, RuleId.JOINT_ANGLE_WITHIN ->

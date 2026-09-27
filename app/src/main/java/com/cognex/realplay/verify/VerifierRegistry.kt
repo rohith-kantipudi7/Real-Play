@@ -4,9 +4,11 @@ import com.cognex.realplay.verify.verifiers.AboveVerifier
 import com.cognex.realplay.verify.verifiers.ArrangementMatchVerifier
 import com.cognex.realplay.verify.verifiers.BelowVerifier
 import com.cognex.realplay.verify.verifiers.ColorMatchVerifier
+import com.cognex.realplay.verify.verifiers.CollinearVerifier
 import com.cognex.realplay.verify.verifiers.CountEqualsVerifier
 import com.cognex.realplay.verify.verifiers.DistanceGreaterThanVerifier
 import com.cognex.realplay.verify.verifiers.DistanceLessThanVerifier
+import com.cognex.realplay.verify.verifiers.GroupClusteredVerifier
 import com.cognex.realplay.verify.verifiers.JointAngleWithinVerifier
 import com.cognex.realplay.verify.verifiers.LeftOfVerifier
 import com.cognex.realplay.verify.verifiers.LimbRaisedVerifier
@@ -24,6 +26,7 @@ import com.cognex.realplay.verify.verifiers.PointInZoneVerifier
 import com.cognex.realplay.verify.verifiers.PoseMatchVerifier
 import com.cognex.realplay.verify.verifiers.RightOfVerifier
 import com.cognex.realplay.verify.verifiers.ShapeMatchVerifier
+import com.cognex.realplay.verify.verifiers.SizeOrderVerifier
 
 /**
  * Maps every [RuleId] to its [Verifier] (Architecture §4.1, S4). Pure JVM.
@@ -66,6 +69,9 @@ class VerifierRegistry private constructor(private val verifiers: Map<RuleId, Ve
             CountEqualsVerifier(),
             NonDegenerateTriangleVerifier(),
             ArrangementMatchVerifier(),
+            CollinearVerifier(),
+            SizeOrderVerifier(),
+            GroupClusteredVerifier(),
             PoseMatchVerifier(),
             JointAngleWithinVerifier(),
             LimbRaisedVerifier(),

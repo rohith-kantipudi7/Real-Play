@@ -11,7 +11,7 @@ import com.cognex.realplay.verify.RuleId
  * top. Nothing here depends on how a spec was produced.
  */
 
-/** The eight shipped games (Architecture §7). */
+/** The shipped games (Architecture §7 + demo game library). */
 enum class ChallengeType {
     LAST_RESORT,        // G0
     MOVE_CLOSE,         // G1
@@ -20,7 +20,13 @@ enum class ChallengeType {
     STATUE_MATCH,       // G4
     RED_LIGHT_GREEN_LIGHT, // G5
     FETCH_RACE,         // G6
-    TRIANGLE_BUILD      // G7
+    TRIANGLE_BUILD,     // G7
+    GRAB,               // G8  — show the named object
+    LINE_UP,            // G9  — all objects in one straight row
+    SORT_SIZE,          // G10 — order objects by size, left→right
+    GROUP_COLOR,        // G11 — cluster the same-coloured objects, separated
+    GROUP_KIND,         // G12 — cluster the same-kind objects, separated
+    COMBO_POSE          // G13 — hold an object and strike a pose (finale)
 }
 
 /** Difficulty tier (Architecture §8). `effectiveTier = min(skill, scene, age)`. */
