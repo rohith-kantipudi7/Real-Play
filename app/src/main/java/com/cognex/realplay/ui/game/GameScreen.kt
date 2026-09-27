@@ -264,7 +264,7 @@ fun GameScreen(onFinish: () -> Unit, onBack: () -> Unit) {
             )
 
             // Bottom controls.
-            val freeform by com.cognex.realplay.engine.AppSettings.verifierEnabled.collectAsState()
+            val verified by com.cognex.realplay.engine.AppSettings.verifierEnabled.collectAsState()
             Row(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
@@ -273,9 +273,9 @@ fun GameScreen(onFinish: () -> Unit, onBack: () -> Unit) {
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 RpOutlinedButton(text = "Back", onClick = onBack, modifier = Modifier.weight(1f))
-                if (freeform) {
+                if (!verified) {
                     // Freeform (no verifier): advance manually — no timer, no scoring.
-                    RpButton(text = "Next level", onClick = { vm.nextFreeform() }, modifier = Modifier.weight(1.4f))
+                    RpButton(text = "Next game", onClick = { vm.nextFreeform() }, modifier = Modifier.weight(1.4f))
                     RpOutlinedButton(text = "Finish", onClick = { vm.finish() }, modifier = Modifier.weight(1f))
                 } else {
                     RpOutlinedButton(
