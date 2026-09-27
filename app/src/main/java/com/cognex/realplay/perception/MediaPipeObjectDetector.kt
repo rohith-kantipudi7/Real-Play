@@ -97,10 +97,10 @@ class MediaPipeObjectDetector private constructor(
         // Primary: float32 efficientdet_lite2 (accurate, GPU-capable). Fallback: int8 lite0 (CPU).
         private const val TIER_A_FLOAT = "models/efficientdet_lite2.tflite"
         private const val TIER_A_INT8 = "models/efficientdet_lite0.tflite"
-        // Slightly permissive: the tracker's temporal voting rejects spurious one-frame hits, so a
-        // lower detector threshold improves recall without hurting stability (§S2, §3 tracker).
-        private const val SCORE_THRESHOLD = 0.3f
-        private const val MAX_RESULTS = 15
+        // Permissive detector gate: the tracker's temporal voting + coasting reject spurious hits,
+        // so a low threshold maximises recall (more objects seen) without hurting steadiness (§S2).
+        private const val SCORE_THRESHOLD = 0.2f
+        private const val MAX_RESULTS = 25
 
         /**
          * Creates the detector, resolving the model tier and trying GPU first, then CPU. Returns
