@@ -2,6 +2,8 @@ package com.cognex.realplay.engine
 
 import com.cognex.realplay.challenge.ChallengeSpec
 import com.cognex.realplay.challenge.scopedTo
+import com.cognex.realplay.verify.Evidence
+import com.cognex.realplay.verify.StepEvaluation
 import com.cognex.realplay.verify.TemporalGate
 import com.cognex.realplay.verify.VerificationBaseline
 import com.cognex.realplay.verify.VerificationOutcome
@@ -69,7 +71,11 @@ class MissionRunner(
         val step = spec.steps[idx]
         val eval = registry.evaluate(step, spec.scopedTo(step), world, baselineProvider(idx))
         val gate = gates[idx]
-        gate.record(eval, timestampMs)
+        // Near-miss grace: a confidently-close FAIL counts toward the hold, so "near enough"
+        // completes the level and moves on (never an Unsure — missing/uncertain evidence still
+        // can't pass, §20 invariant 15).
+        val eligible = eval.outcome !is VerificationOutcome.Unsure
+        gate.record(TemporalGate.Sample(timestampMs, eval.satisfied || nearEnough(eval), eligible))
 
         var fired = false
         if (gate.fired()) {
@@ -102,5 +108,27 @@ class MissionRunner(
         while (next < spec.steps.size && done[next]) next++
         currentStepIndex = next.coerceAtMost(spec.steps.size)
         if (currentStepIndex >= spec.steps.size) currentStepIndex = spec.steps.size - 1
+    }
+
+    /**
+     * A confidently-close FAIL — every threshold-style evidence item is within [GRACE] of its
+     * target. Exact comparisons (colour/shape/presence, "==" / "~=") get no grace. Unsure never
+     * reaches here, so uncertain evidence can still never pass.
+     */
+    private fun nearEnough(eval: StepEvaluation): Boolean {
+        if (eval.outcome !is VerificationOutcome.Fail) return false
+        val ev = eval.evidence
+        return ev.isNotEmpty() && ev.all { it.satisfied || withinGrace(it) }
+    }
+
+    private fun withinGrace(e: Evidence): Boolean = when (e.comparator) {
+        ">", ">=" -> e.measured >= e.required * (1f - GRACE)
+        "<", "<=" -> e.measured <= e.required * (1f + GRACE)
+        else -> false
+    }
+
+    private companion object {
+        /** Demo leniency: how far past a threshold still counts as "near enough" to complete. */
+        const val GRACE = 0.25f
     }
 }

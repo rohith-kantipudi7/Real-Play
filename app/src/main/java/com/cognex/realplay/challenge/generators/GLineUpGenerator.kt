@@ -51,9 +51,9 @@ class GLineUpGenerator : ChallengeGenerator {
         val affById = aff.associateBy { it.trackId }
         val pieces = pickPieces(world, affById)
         val tolerance = when (ctx.effectiveTier) {
-            Tier.EASY -> 0.08f
-            Tier.MEDIUM -> 0.06f
-            Tier.HARD -> 0.045f
+            Tier.EASY -> 0.12f
+            Tier.MEDIUM -> 0.10f
+            Tier.HARD -> 0.08f
         }
         return ChallengeSpec(
             id = "G9-${pieces.joinToString("-") { it.trackId.toString() }}",
@@ -65,7 +65,7 @@ class GLineUpGenerator : ChallengeGenerator {
             steps = listOf(
                 VerificationStep(
                     rule = RuleId.COLLINEAR,
-                    params = mapOf("tolerance" to tolerance, "minSpread" to 0.25f),
+                    params = mapOf("tolerance" to tolerance, "minSpread" to 0.20f),
                     holdMs = ctx.knobs.holdMs
                 )
             ),

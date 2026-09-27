@@ -82,8 +82,8 @@ class GGroupColourGenerator : ChallengeGenerator {
     }
 
     private fun thresholds(tier: Tier): Pair<Float, Float> = when (tier) {
-        Tier.EASY -> 0.32f to 0.26f
-        Tier.MEDIUM -> 0.28f to 0.3f
-        Tier.HARD -> 0.24f to 0.34f
+        Tier.EASY -> 0.40f to 0.20f
+        Tier.MEDIUM -> 0.36f to 0.24f
+        Tier.HARD -> 0.32f to 0.28f
     }
 }

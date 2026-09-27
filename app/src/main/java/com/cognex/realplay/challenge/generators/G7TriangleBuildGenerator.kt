@@ -65,9 +65,9 @@ class G7TriangleBuildGenerator : ChallengeGenerator {
         // skew) than an EASY one. Camera-space (2D) thresholds; a calibrated planar surface would
         // scale these into metric space in a later stage.
         val (minArea, minAngle, maxRatio) = when (ctx.effectiveTier) {
-            Tier.EASY -> Triple(0.015f, 15f, 6f)
-            Tier.MEDIUM -> Triple(0.02f, 20f, 4f)
-            Tier.HARD -> Triple(0.03f, 28f, 3f)
+            Tier.EASY -> Triple(0.010f, 12f, 8f)
+            Tier.MEDIUM -> Triple(0.014f, 15f, 6f)
+            Tier.HARD -> Triple(0.018f, 18f, 5f)
         }
 
         return ChallengeSpec(

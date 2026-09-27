@@ -52,9 +52,9 @@ class GShowNamedGenerator : ChallengeGenerator {
         // Tier scales how large the object must appear: an easy round accepts a distant glimpse, a
         // hard one demands it be held right up. Toddlers keep the gentle EASY threshold.
         val minArea = when (ctx.effectiveTier) {
-            Tier.EASY -> 0.05f
-            Tier.MEDIUM -> 0.08f
-            Tier.HARD -> 0.11f
+            Tier.EASY -> 0.03f
+            Tier.MEDIUM -> 0.045f
+            Tier.HARD -> 0.06f
         }
         val name = target.label.ifBlank { "glowing object" }
         return ChallengeSpec(
