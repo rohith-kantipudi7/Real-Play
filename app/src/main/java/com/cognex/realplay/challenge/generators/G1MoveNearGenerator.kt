@@ -11,7 +11,6 @@ import com.cognex.realplay.challenge.Tier
 import com.cognex.realplay.challenge.VerificationStep
 import com.cognex.realplay.verify.RuleId
 import com.cognex.realplay.world.Affordance
-import com.cognex.realplay.world.ColorTag
 import com.cognex.realplay.world.SceneCapability
 import com.cognex.realplay.world.TrackedObject
 import com.cognex.realplay.world.WorldState
@@ -22,9 +21,9 @@ import kotlin.math.min
  * G1 · Move it Close (Architecture §7, §7.1). Pure JVM.
  *
  * Picks two movable, stable objects currently separated by more than 1.8× the target threshold, so
- * the player must genuinely move something. Prefers a distinct + nameable pair; AUTOMATICALLY falls
- * back to highlight-colour phrasing ("the glowing blue one") when an object is not nameable or when
- * trackOnlyMode is on — automatic, not a separate mode (§7.1).
+ * the player must genuinely move something. Prefers a distinct + nameable pair and ALWAYS names the
+ * objects ("the cup", "the book"); when an object has no reliable name it falls back to a colour-free
+ * glow reference ("the glowing one") — a move target is never named by its colour (§7.1, product call).
  *
  * maxStepsForTier returns 2 at HARD; the chained "…then move the cup away from the book" form is
  * emitted when the budget is 2 and a distinct third movable object exists (§8.1b, §7.1).
@@ -182,12 +181,12 @@ class G1MoveNearGenerator : ChallengeGenerator {
         else chosen.second to chosen.first
     }
 
-    /** Nameable label, or automatic highlight-colour phrasing (§7.1). */
+    /** The object's NAME when we have one, else a colour-free reference to its on-screen glow —
+     *  a move target is never identified by a colour word (product call). */
     private fun phrase(obj: TrackedObject, aff: Affordance?, trackOnly: Boolean): String {
         val nameable = aff?.nameable == true
         if (!trackOnly && nameable && obj.label.isNotBlank()) return "the ${obj.label.lowercase()}"
-        val color = obj.color?.takeIf { it != ColorTag.UNKNOWN }?.name?.lowercase()
-        return if (color != null) "the glowing $color one" else "the glowing object"
+        return "the glowing one"
     }
 
     private fun distance(a: TrackedObject, b: TrackedObject): Float =

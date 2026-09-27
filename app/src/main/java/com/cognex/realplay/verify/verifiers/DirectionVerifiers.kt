@@ -25,11 +25,11 @@ internal abstract class DirectionVerifier(final override val rule: RuleId) : Ver
         step: VerificationStep, spec: ChallengeSpec, world: WorldState, baseline: VerificationBaseline
     ): StepEvaluation {
         Resolution.frameGuard(world)?.let { return it }
-        val subject = when (val r = Resolution.requireObject(spec.actorAt(0), world, "first object")) {
+        val subject = when (val r = Resolution.requireObject(spec.actorAt(0), world, "object")) {
             is Resolution.ObjectResolution.Found -> r.obj
             is Resolution.ObjectResolution.Missing -> return r.eval
         }
-        val reference = when (val r = Resolution.requireObject(spec.actorAt(1), world, "second object")) {
+        val reference = when (val r = Resolution.requireObject(spec.actorAt(1), world, "other object")) {
             is Resolution.ObjectResolution.Found -> r.obj
             is Resolution.ObjectResolution.Missing -> return r.eval
         }

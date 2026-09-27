@@ -24,11 +24,11 @@ internal abstract class DistanceVerifier(final override val rule: RuleId) : Veri
         step: VerificationStep, spec: ChallengeSpec, world: WorldState, baseline: VerificationBaseline
     ): StepEvaluation {
         Resolution.frameGuard(world)?.let { return it }
-        val a = when (val r = Resolution.requireObject(spec.actorAt(0), world, "first object")) {
+        val a = when (val r = Resolution.requireObject(spec.actorAt(0), world, "object")) {
             is Resolution.ObjectResolution.Found -> r.obj
             is Resolution.ObjectResolution.Missing -> return r.eval
         }
-        val b = when (val r = Resolution.requireObject(spec.actorAt(1), world, "second object")) {
+        val b = when (val r = Resolution.requireObject(spec.actorAt(1), world, "other object")) {
             is Resolution.ObjectResolution.Found -> r.obj
             is Resolution.ObjectResolution.Missing -> return r.eval
         }

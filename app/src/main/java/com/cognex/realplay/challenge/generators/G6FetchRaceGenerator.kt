@@ -126,7 +126,7 @@ class G6FetchRaceGenerator : ChallengeGenerator {
             }
         }
 
-        val what = requestPhrase(target, color, affById)
+        val what = requestPhrase(target, affById)
         val deliver = if (zone != null) " and bring it to ${zoneName(zone)}" else ""
         val instruction = "Player $playerId, fetch $what$deliver!"
 
@@ -167,17 +167,12 @@ class G6FetchRaceGenerator : ChallengeGenerator {
     private fun pickZone(zones: List<Zone>): Zone? =
         zones.sortedByDescending { it.source == ZoneSource.DETECTED }.firstOrNull()
 
-    /** Human phrasing for the requested object + attribute (§7 — only attributes the object has). */
-    private fun requestPhrase(target: TrackedObject?, color: ColorTag?, affById: Map<Int, Affordance>): String {
+    /** Names the fetch target by its label when we have one, else a colour-free glow reference —
+     *  the object is never identified by a colour word (product call). */
+    private fun requestPhrase(target: TrackedObject?, affById: Map<Int, Affordance>): String {
         if (target == null) return "an object"
         val nameable = affById[target.trackId]?.nameable == true && target.label.isNotBlank()
-        val name = if (nameable) target.label.lowercase() else "object"
-        val colorWord = color?.name?.lowercase()
-        return when {
-            colorWord != null && nameable -> "the $colorWord $name"
-            colorWord != null -> "the $colorWord one"
-            else -> "the $name"
-        }
+        return if (nameable) "the ${target.label.lowercase()}" else "the glowing one"
     }
 
     private fun zoneName(zone: Zone): String {

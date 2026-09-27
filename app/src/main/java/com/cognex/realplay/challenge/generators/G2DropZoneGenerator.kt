@@ -202,8 +202,8 @@ class G2DropZoneGenerator : ChallengeGenerator {
     private fun phrase(obj: TrackedObject, aff: Affordance?, trackOnly: Boolean): String {
         val nameable = aff?.nameable == true
         if (!trackOnly && nameable && obj.label.isNotBlank()) return "the ${obj.label.lowercase()}"
-        val color = obj.color?.takeIf { it != ColorTag.UNKNOWN }?.name?.lowercase()
-        return if (color != null) "the glowing $color one" else "the glowing object"
+        // No reliable name → reference the on-screen glow, never a colour word (product call).
+        return "the glowing one"
     }
 
     /** Human phrasing for the zone target. */
