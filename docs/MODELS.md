@@ -53,6 +53,34 @@ At runtime, `AssetModelResolver.inspectRequired()` logs each asset's byte size a
 adb logcat -s RealPlay/MODEL
 ```
 
+## Tier-0 (optional, side-loaded — a STRONGER object detector via YOLO + ONNX Runtime)
+
+The bundled detector is EfficientDet-Lite2 (the strongest model MediaPipe's ObjectDetector supports).
+For higher accuracy you can drop in a **YOLO** model (v8/v11, 80-class COCO) run on **ONNX Runtime** —
+it activates automatically when the file below is present, and the app falls back to EfficientDet
+when it is absent. Nothing else changes.
+
+- **Get a model** (needs Python + Ultralytics, one-time):
+  ```bash
+  pip install ultralytics
+  yolo export model=yolo11n.pt format=onnx imgsz=640   # or yolov8n.pt
+  ```
+  This produces `yolo11n.onnx` (~10 MB). Any Ultralytics YOLOv8/YOLO11 `.onnx` at 640×640 works.
+
+- **Push it to the exact path** `YoloOnnxDetector` looks for:
+  ```powershell
+  adb shell mkdir -p /sdcard/realplay/models
+  adb push yolo11n.onnx /sdcard/realplay/models/yolo.onnx
+  ```
+
+- **Relaunch** the app. Logcat should show `Detection pipeline: YOLO (ONNX) detector`. Delete the
+  file to go back to EfficientDet.
+
+Notes: YOLO's raw output is export-specific — `YoloOnnxDetector` decodes the standard Ultralytics
+`[1,84,8400]` layout with confidence gating (0.30) + NMS (IoU 0.45). If a particular export detects
+nothing, the tensor orientation / thresholds in that file are the knobs to tune. Runs off-thread on
+ONNX Runtime (NNAPI when available, else CPU).
+
 ## Tier-B (optional, side-loaded — NOT part of this step)
 
 Tier-B models live in `/sdcard/realplay/models/` and are optional by definition. The app runs

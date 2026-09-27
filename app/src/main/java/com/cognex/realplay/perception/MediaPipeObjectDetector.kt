@@ -36,7 +36,7 @@ class MediaPipeObjectDetector private constructor(
     @Volatile
     private var currentBitmap: Bitmap? = null
 
-    fun setFrameBitmap(bitmap: Bitmap) { currentBitmap = bitmap }
+    override fun setFrameBitmap(bitmap: Bitmap) { currentBitmap = bitmap }
 
     override fun detect(image: MPImage, timestampMs: Long) {
         try {

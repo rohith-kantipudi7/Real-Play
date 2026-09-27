@@ -190,8 +190,8 @@ maxResults 25, tracker coasting added.
 |---|---|---|
 | Lower threshold 0.3→0.2, maxResults 15→25 | ✅ | Immediate recall bump |
 | Tracker coasting (no blink on a missed frame) | ✅ | `MinimalTracker` holds 320ms, fades by 800ms |
-| **Switch to a stronger detector (YOLO via LiteRT)** | 🟡 in progress | MediaPipe can't run YOLO; needs a raw LiteRT `ObjectDetectorSource` with custom decode + NMS |
-| Provide/verify the YOLO `.tflite` model + document download | ⬜ | YOLO11n / YOLOv8n, 80‑class COCO |
+| **Switch to a stronger detector (YOLO via LiteRT)** | 🟡 built (opt-in) | ONNX Runtime path shipped: `YoloOnnxDetector` activates when `/sdcard/realplay/models/yolo.onnx` is present, else EfficientDet. Build+launch verified; needs the model dropped in + on-device tuning |
+| Provide/verify the YOLO `.onnx` model + document download | ✅ | Ultralytics `yolo export ... format=onnx`; steps in docs/MODELS.md (Tier-0) |
 | Fine‑tune EfficientDet‑Lite on the demo props (best ROI for a fixed kit) | ⬜ | MediaPipe Model Maker → `realplay_props.tflite` (Tier‑B slot already wired) |
 
 ---

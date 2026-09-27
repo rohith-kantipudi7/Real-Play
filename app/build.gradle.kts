@@ -96,6 +96,10 @@ dependencies {
     // MediaPipe object detection (S2)
     implementation(libs.mediapipe.tasks.vision)
 
+    // ONNX Runtime — optional stronger detector (YOLO), opt-in via a side-loaded model. Separate
+    // runtime from MediaPipe's bundled TFLite, so no native conflict.
+    implementation(libs.onnxruntime.android)
+
     // On-device LLM composer — local, offline (S11 / §6.5). Loads a side-loaded Tier-B .task bundle.
     implementation(libs.mediapipe.tasks.genai)
 

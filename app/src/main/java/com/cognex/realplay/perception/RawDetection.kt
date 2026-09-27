@@ -1,5 +1,6 @@
 package com.cognex.realplay.perception
 
+import android.graphics.Bitmap
 import com.cognex.realplay.world.ColorTag
 import com.cognex.realplay.world.NormRect
 import com.google.mediapipe.framework.image.MPImage
@@ -30,6 +31,9 @@ interface ObjectDetectorSource {
      * caller (the CameraX analyzer thread, §3.3).
      */
     fun detect(image: MPImage, timestampMs: Long)
+
+    /** Supplies the raw frame bitmap for detectors that need pixels (colour sampling, YOLO input). */
+    fun setFrameBitmap(bitmap: Bitmap) {}
 
     /** Releases native resources. */
     fun close()
