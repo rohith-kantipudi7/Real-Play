@@ -100,6 +100,12 @@ class GameViewModel(
     /** Cursor into [DemoArc.order] for the scripted demo arc; advances each time a game begins. */
     private var arcCursor = 0
 
+    // ── without-verifier (freeform) mode state (§ user request) ──
+    private var freeformLevel = 0
+    private var freeformStartMs = 0L
+    private var freeformHoldUntil = 0L
+    private var currentFreeform: FreeformGames.Game? = null
+
     /** Session-elapsed break suggestion (§10 rule 8 — TODDLER only, once per session). */
     private val sessionStartMs = System.currentTimeMillis()
     private var breakDismissed = false
@@ -194,6 +200,12 @@ class GameViewModel(
      */
     fun skip() {
         if (sessionOver) return
+        // Freeform mode: no verification — just jump straight to the next timed game.
+        if (!AppSettings.verifierEnabled.value) {
+            freeformHoldUntil = 0L
+            freeformStartMs = 0L
+            return
+        }
         val spec = selection?.spec ?: return
         session.recordFail()
         bestStreak = maxOf(bestStreak, session.streak)
@@ -248,6 +260,13 @@ class GameViewModel(
     private fun process(world: WorldState, cap: SceneCapability) {
         if (sessionOver) return
         maybeSuggestBreak()
+
+        // Without-verifier freeform mode (§ user request): honour-system games on a 30 s timer,
+        // read aloud and listed on screen — no camera verification. Solo only; PARTY keeps its flow.
+        if (!AppSettings.verifierEnabled.value && PartyRuntime.active == null) {
+            processFreeform(world)
+            return
+        }
 
         // Hold on the completed level's celebration for a calm beat before advancing (§3a).
         if (advanceAtMs != 0L) {
@@ -331,6 +350,80 @@ class GameViewModel(
             // across turns too, not just within one player's own session (§25).
             recentTypes = (PartyRuntime.active?.recentTypes ?: emptyList()) + session.recentTypes,
             seed = seedCounter++
+        )
+    }
+
+    /**
+     * Without-verifier freeform loop: shows a creative game, reads it aloud (via the UI's TTS on
+     * challengeIndex change) and lists it on screen, runs a 30 s timer, then awards a flat score and
+     * advances to the next, harder game. No pass/fail — the camera doesn't judge these (§ user req).
+     */
+    private fun processFreeform(world: WorldState) {
+        val now = world.timestampMs
+        // Calm celebration hold between games.
+        if (freeformHoldUntil != 0L) {
+            if (now < freeformHoldUntil) return
+            freeformHoldUntil = 0L
+            freeformStartMs = 0L
+        }
+        // Start the next game.
+        if (freeformStartMs == 0L) {
+            freeformLevel++
+            challengeIndex++
+            freeformStartMs = now
+            val labels = world.objects.mapNotNull { o -> o.label.takeIf { it.isNotBlank() } }.distinct()
+            currentFreeform = FreeformGames.forLevel(freeformLevel, labels)
+            publishFreeform(currentFreeform!!, remaining = FREEFORM_MS, elapsed = 0L, done = false)
+            return
+        }
+        val game = currentFreeform ?: return
+        val elapsed = (now - freeformStartMs).coerceAtLeast(0L)
+        val remaining = (FREEFORM_MS - elapsed).coerceAtLeast(0L)
+        if (remaining <= 0L) {
+            session.addScore(FREEFORM_SCORE)
+            SessionResults.record(
+                ChallengeResult(
+                    index = challengeIndex,
+                    type = game.title,
+                    winnerId = "freeform",
+                    passed = true,
+                    timedOut = false,
+                    score = FREEFORM_SCORE,
+                    stepCount = 1,
+                    completedSteps = 1,
+                    evidence = emptyList()
+                ),
+                totalScore = session.totalScore,
+                bestStreak = bestStreak
+            )
+            publishFreeform(game, remaining = 0L, elapsed = FREEFORM_MS, done = true)
+            freeformHoldUntil = now + LEVEL_DONE_MS
+            return
+        }
+        publishFreeform(game, remaining, elapsed, done = false)
+    }
+
+    private fun publishFreeform(game: FreeformGames.Game, remaining: Long, elapsed: Long, done: Boolean) {
+        _cues.value = emptyList()
+        _ui.value = _ui.value.copy(
+            status = if (done) PlayStatus.PASSED else PlayStatus.PLAYING,
+            instruction = game.instruction,
+            stepIndex = 0,
+            stepCount = 1,
+            completedSteps = if (done) 1 else 0,
+            stepProgress = if (done) 1f else (elapsed.toFloat() / FREEFORM_MS).coerceIn(0f, 1f),
+            score = session.totalScore,
+            streak = session.streak,
+            challengeIndex = challengeIndex,
+            perfect = false,
+            lastGain = if (done) FREEFORM_SCORE else _ui.value.lastGain,
+            coachingHint = if (done) null else game.hints.firstOrNull(),
+            evidence = emptyList(),
+            timeRemainingMs = if (done) null else remaining,
+            timeFraction = if (done) null else (remaining.toFloat() / FREEFORM_MS).coerceIn(0f, 1f),
+            retriesLeft = 0,
+            winnerId = "",
+            winnerType = ""
         )
     }
 
@@ -634,5 +727,8 @@ class GameViewModel(
         const val LEVEL_DONE_MS = 2_000L
         /** Short calm beat after a skip before the next game composes. */
         const val SKIP_HOLD_MS = 650L
+        /** Without-verifier game duration and its flat honour-system reward. */
+        const val FREEFORM_MS = 30_000L
+        const val FREEFORM_SCORE = 20
     }
 }

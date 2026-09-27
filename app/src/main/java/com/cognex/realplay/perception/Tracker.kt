@@ -47,7 +47,7 @@ class Tracker {
         val candidate = Array(nTracks) { BooleanArray(nDets) }
         for (t in 0 until nTracks) {
             for (d in 0 until nDets) {
-                val pair = evaluate(tracks[t], detections[d])
+                val pair = evaluate(tracks[t], detections[d], timestampMs)
                 cost[t][d] = pair.first
                 candidate[t][d] = pair.second
             }
@@ -96,9 +96,12 @@ class Tracker {
     }
 
     /** Returns (cost, isCandidate) for a track/detection pair. */
-    private fun evaluate(track: Track, det: RawDetection): kotlin.Pair<Float, Boolean> {
-        val iou = SpatialRelations.iou(track.box, det.box)
-        val cdist = SpatialRelations.distance(track.center, det.box.center)
+    private fun evaluate(track: Track, det: RawDetection, now: Long): kotlin.Pair<Float, Boolean> {
+        // Match against the track's velocity-PREDICTED pose, not its last-seen one, so a moving
+        // object still overlaps/near-matches its own track between frames (§12 tracking-while-moving).
+        val (predBox, predCenter) = track.predictedPose(now)
+        val iou = SpatialRelations.iou(predBox, det.box)
+        val cdist = SpatialRelations.distance(predCenter, det.box.center)
         val sameLabel = track.label == det.label
         val candidate = if (sameLabel) {
             iou >= IOU_MATCH || cdist <= CENTROID_FALLBACK
@@ -202,6 +205,17 @@ class Tracker {
             stale = false
         }
 
+        /** Box + centre extrapolated to [now] by the current velocity, capped so an erratic reading
+         *  can't fling the prediction across the frame. Used only for MATCHING, never for output. */
+        fun predictedPose(now: Long): kotlin.Pair<NormRect, NormPoint> {
+            val dt = (((now - lastUpdateMs).coerceAtLeast(0L)) / 1000f).coerceAtMost(PREDICT_MAX_DT)
+            val dx = velocity.x * dt
+            val dy = velocity.y * dt
+            if (dx == 0f && dy == 0f) return box to center
+            return NormRect(box.left + dx, box.top + dy, box.right + dx, box.bottom + dy) to
+                NormPoint(center.x + dx, center.y + dy)
+        }
+
         fun coast(now: Long) {
             val dt = ((now - lastUpdateMs).coerceAtLeast(1L)) / 1000f
             val newCenter = NormPoint(center.x + velocity.x * dt, center.y + velocity.y * dt)
@@ -280,9 +294,12 @@ class Tracker {
 
     companion object {
         const val IOU_MATCH = 0.3f
-        const val CENTROID_FALLBACK = 0.12f
+        // Wider centroid gate so a fast move (boxes stop overlapping) still re-matches its own track.
+        const val CENTROID_FALLBACK = 0.16f
         const val CROSS_LABEL_IOU = 0.6f
         const val PROMOTE_HITS = 3
+        /** Cap on how far ahead velocity may predict a track's pose for matching (seconds). */
+        const val PREDICT_MAX_DT = 0.3f
         // Long coast so a track survives a multi-second detection dropout (occlusion, a missed
         // model frame) — it stays resolvable by its id and re-matches the same object on reappear,
         // instead of being deleted and re-detected as a NEW id mid-game.

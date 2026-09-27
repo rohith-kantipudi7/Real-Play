@@ -68,17 +68,36 @@ fun SettingsScreen(
         Spacer(Modifier.height(8.dp))
         RpCard(modifier = Modifier.fillMaxWidth()) {
             SectionBody {
+                val verifier by AppSettings.verifierEnabled.collectAsState()
+                ToggleRow(
+                    label = "Verify games with the camera",
+                    checked = verifier,
+                    onCheckedChange = AppSettings::setVerifierEnabled
+                )
+                Text(
+                    text = "On: the camera checks each game (grab, arrange, colour…) and passes it " +
+                        "when you really do it. Off: freeform mode — the app reads a fun, harder game " +
+                        "aloud, shows it, and gives you 30 seconds; nothing is camera-checked.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 4.dp, bottom = 4.dp)
+                )
                 val demoArc by AppSettings.demoArcEnabled.collectAsState()
                 ToggleRow(
                     label = "Play the demo game order",
                     checked = demoArc,
-                    onCheckedChange = AppSettings::setDemoArcEnabled,
+                    onCheckedChange = AppSettings::setDemoArcEnabled
+                )
+                val zones by AppSettings.zonesEnabled.collectAsState()
+                ToggleRow(
+                    label = "Detect colour zones (regions)",
+                    checked = zones,
+                    onCheckedChange = AppSettings::setZonesEnabled,
                     divider = false
                 )
                 Text(
-                    text = "Plays a fixed game order for each difficulty — Toddler stays on basic " +
-                        "games, up to the full Pro demo arc — skipping only a game your table can't " +
-                        "support. Turn off for adaptive games chosen from what the camera sees.",
+                    text = "Zones are off by default so a coloured object is never mistaken for a " +
+                        "target region. Turn on only if you tape a coloured sheet as a target area.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 4.dp)

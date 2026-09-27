@@ -40,9 +40,17 @@ object AppSettings {
     private val _demoArcEnabled = MutableStateFlow(false)
     val demoArcEnabled: StateFlow<Boolean> = _demoArcEnabled.asStateFlow()
 
+    private val _zonesEnabled = MutableStateFlow(false)
+    val zonesEnabled: StateFlow<Boolean> = _zonesEnabled.asStateFlow()
+
+    private val _verifierEnabled = MutableStateFlow(true)
+    val verifierEnabled: StateFlow<Boolean> = _verifierEnabled.asStateFlow()
+
     fun setForceTrackOnly(value: Boolean) { _forceTrackOnly.value = value }
     fun setMuted(value: Boolean) { _muted.value = value }
     fun setAiComposerEnabled(value: Boolean) { _aiComposerEnabled.value = value }
     fun setDevOverlayEnabled(value: Boolean) { _devOverlayEnabled.value = value }
     fun setDemoArcEnabled(value: Boolean) { _demoArcEnabled.value = value }
+    fun setZonesEnabled(value: Boolean) { _zonesEnabled.value = value }
+    fun setVerifierEnabled(value: Boolean) { _verifierEnabled.value = value }
 }

@@ -80,7 +80,7 @@ class ObjectDetectionPipeline(
                 lumaGrid = lastLumaGrid,
                 gridWidth = FrameQualityAnalyzer.GRID_W,
                 gridHeight = FrameQualityAnalyzer.GRID_H,
-                zones = zoneDetector.latestZones(),
+                zones = if (AppSettings.zonesEnabled.value) zoneDetector.latestZones() else emptyList(),
                 trackOnlyMode = AppSettings.forceTrackOnly.value,
                 players = if (poseActive) latestPlayers else emptyList(),
                 dynamics = if (poseActive) latestDynamics else PlayerDynamics.EMPTY
@@ -142,8 +142,9 @@ class ObjectDetectionPipeline(
         if (frameCount++ % 5 == 0) {
             lastLumaGrid = FrameQualityAnalyzer.sampleLuma(frame.bitmap)
         }
-        // Detect colour zones at most every 3rd frame (§S7 cadence).
-        if (frameCount % ZoneDetector.RUN_EVERY_N == 0) {
+        // Detect colour zones at most every 3rd frame (§S7 cadence) — only when zones are enabled;
+        // off by default so a coloured object is never mistaken for a "target region".
+        if (AppSettings.zonesEnabled.value && frameCount % ZoneDetector.RUN_EVERY_N == 0) {
             zoneDetector.onFrame(frame.bitmap)
         }
         d.setFrameBitmap(frame.bitmap)
