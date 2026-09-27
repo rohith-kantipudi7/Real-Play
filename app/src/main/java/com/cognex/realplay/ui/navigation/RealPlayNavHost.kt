@@ -37,8 +37,9 @@ fun RealPlayNavHost(
             HomeScreen(
                 onPlay = {
                     PartyRuntime.clear()
-                    // Point & Play (§1): zero-config — sensible defaults, straight to the camera.
-                    SessionConfig.mode = PlayMode.MIXED
+                    // Point & Play (§1): zero-config — objects by default so a body-pose game only
+                    // appears when a human is explicitly chosen (Home → Advanced → Body/Mixed).
+                    SessionConfig.mode = PlayMode.OBJECTS
                     SessionConfig.ageBand = AgeBand.MIDDLE
                     SessionConfig.playerCount = 1
                     navController.navigate(Routes.CALIBRATION)
