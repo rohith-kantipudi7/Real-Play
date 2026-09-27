@@ -28,17 +28,26 @@ Goal: PLAY → live camera → games. No mode/age/player form. The camera *is* t
 
 ## 2. Audience control — replaces Age + Difficulty  ⬜
 
-Three tiers. Each tier sets the **starting** difficulty; the game keeps **ramping up** within a
-session regardless of tier.
+FOUR tiers. Each tier sets the **starting** difficulty; Kids/Player/Pro keep **ramping up** within a
+session, Toddler stays gentle (no ramp, §10 policy).
 
-| Tier | Feel | Starts at | Maps to (under the hood) | Opens replay with |
+| Tier | Feel | Starts at | Maps to (under the hood) | Games |
 |---|---|---|---|---|
-| **Kids** | gentle, big cues, spoken, no timers | Easy | AgeBand EARLY + easy, ramps up | **Grab** |
-| **Player** | balanced, playful | Medium | AgeBand MIDDLE + medium, ramps up | **Group** |
-| **Pro** | fast, precise, timed (**demo default**) | Hard | AgeBand OLDER + hard, ramps up | **Triangle** |
+| **Toddler** | very gentle, big cues, spoken, no timers, supervised | Easy (capped) | AgeBand TODDLER + easy, no ramp | **BASIC only**: find named object, colour detection |
+| **Kids** | gentle, playful | Easy | AgeBand EARLY + easy, ramps up | Grab, Group, Pose, Triangle |
+| **Player** | balanced | Medium | AgeBand MIDDLE + medium, ramps up | + Line-up |
+| **Pro** | fast, precise, timed (**demo default**) | Hard | AgeBand OLDER + hard, ramps up | + Sort, Shuffle & Restore, Hold & Pose |
 
-> Names confirmed: **Kids / Player / Pro**. Difficulty always increases each level; the tier only
-> decides where the ramp starts. Every tier opens on a different game.
+> Names confirmed: **Toddler / Kids / Player / Pro**. Toddler is restricted to BASIC games only
+> (find + colour) — no geometry/ordering/memory/pose. Each tier opens on a different game.
+
+| Task | Status | Notes |
+|---|---|---|
+| Difficulty director + age bands + knobs | ✅ | Already drives per‑tier tolerances, timers, step budget |
+| Single **Audience** selector UI (4 tiers) | ⬜ | Toddler / Kids / Player / Pro |
+| Map Audience → AgeBand + Tier | ⬜ | Toddler→TODDLER, Kids→EARLY, Player→MIDDLE, Pro→OLDER |
+| Restrict Toddler to basic games (find, colour) | ⬜ | Filter the registry pool for the TODDLER band |
+| Auto in Point & Play; overridable in Advanced; demo pinned to Pro | ⬜ | |
 
 | Task | Status | Notes |
 |---|---|---|
@@ -168,6 +177,22 @@ Notes:
 - [x] **Smooth ~2s level transitions + TTS readout** — confirmed (see §3a).
 
 **Design is FROZEN. Build order:** §3a smooth transitions → §3b tracking → Point & Play → Audience → new games.
+
+---
+
+## 9. Vision model upgrade  🟡
+
+Detection still feels weak on the current model. **Current:** EfficientDet‑Lite2 (float, GPU) via
+MediaPipe ObjectDetector — already the strongest model that API supports; threshold lowered to 0.2,
+maxResults 25, tracker coasting added.
+
+| Task | Status | Notes |
+|---|---|---|
+| Lower threshold 0.3→0.2, maxResults 15→25 | ✅ | Immediate recall bump |
+| Tracker coasting (no blink on a missed frame) | ✅ | `MinimalTracker` holds 320ms, fades by 800ms |
+| **Switch to a stronger detector (YOLO via LiteRT)** | 🟡 in progress | MediaPipe can't run YOLO; needs a raw LiteRT `ObjectDetectorSource` with custom decode + NMS |
+| Provide/verify the YOLO `.tflite` model + document download | ⬜ | YOLO11n / YOLOv8n, 80‑class COCO |
+| Fine‑tune EfficientDet‑Lite on the demo props (best ROI for a fixed kit) | ⬜ | MediaPipe Model Maker → `realplay_props.tflite` (Tier‑B slot already wired) |
 
 ---
 
